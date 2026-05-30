@@ -1,0 +1,700 @@
+import "./styles.css";
+import * as THREE from "three";
+
+const canvas = document.querySelector("#world");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x081012);
+scene.fog = new THREE.Fog(0x081012, 16, 68);
+
+const camera = new THREE.PerspectiveCamera(
+  72,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  160,
+);
+camera.position.set(0, 1.72, 13);
+
+const world = new THREE.Group();
+scene.add(world);
+
+const clock = new THREE.Clock();
+const raycaster = new THREE.Raycaster();
+const mouseCenter = new THREE.Vector2(0, 0);
+
+const keys = new Set();
+const player = {
+  position: camera.position,
+  velocity: new THREE.Vector3(),
+  yaw: 0,
+  pitch: 0,
+  speed: 5.2,
+  radius: 0.55,
+};
+
+const state = {
+  started: false,
+  paused: true,
+  health: 100,
+  temperature: 22,
+  pue: 1.39,
+  minutes: 8 * 60,
+  activeTarget: null,
+  tickets: [
+    {
+      id: "cooling-leak",
+      title: "Cooling loop leak",
+      type: "Facilities alarm",
+      location: new THREE.Vector3(-13.5, 0.6, -7.5),
+      accent: "#58b7ff",
+      description:
+        "Moisture detected beside the chilled-water branch feeding CRAC-2. Follow the containment and isolation sequence before water reaches the underfloor plenum.",
+      label: "Inspect chilled-water leak at CRAC-2",
+      actions: [
+        "Confirm drip source and keep water away from energized gear",
+        "Close the local isolation valve",
+        "Place absorbent pads and raise a facilities repair ticket",
+      ],
+      completedSteps: new Set(),
+      penaltyRate: 0.7,
+      metricEffect: (dt) => {
+        state.pue += 0.00035 * dt;
+      },
+    },
+    {
+      id: "hot-aisle",
+      title: "Hot aisle temperature drift",
+      type: "Thermal event",
+      location: new THREE.Vector3(3.2, 0.9, -12.5),
+      accent: "#ffb357",
+      description:
+        "Rack row B is running above target because airflow is bypassing the cold aisle. Restore containment and adjust the CRAC setpoint gradually.",
+      label: "Balance airflow at rack row B",
+      actions: [
+        "Verify blanking panels and close the open containment door",
+        "Increase fan trim by one step",
+        "Check return-air temperature after stabilization",
+      ],
+      completedSteps: new Set(),
+      penaltyRate: 0.9,
+      metricEffect: (dt) => {
+        state.temperature += 0.045 * dt;
+        state.pue += 0.0003 * dt;
+      },
+    },
+    {
+      id: "ups-alarm",
+      title: "UPS battery string alarm",
+      type: "Electrical risk",
+      location: new THREE.Vector3(14, 1, 9),
+      accent: "#f76565",
+      description:
+        "The UPS cabinet reports high impedance on one battery string. Confirm redundancy, isolate the string, and document load protection before escalation.",
+      label: "Respond to UPS battery alarm",
+      actions: [
+        "Check N+1 capacity and current load percentage",
+        "Open the maintenance bypass checklist",
+        "Isolate the affected battery string and notify electrical vendor",
+      ],
+      completedSteps: new Set(),
+      penaltyRate: 1.1,
+      metricEffect: (dt) => {
+        state.health -= 0.018 * dt;
+      },
+    },
+    {
+      id: "pdu-load",
+      title: "PDU branch load imbalance",
+      type: "Capacity operation",
+      location: new THREE.Vector3(-6, 0.8, 10.6),
+      accent: "#9ae66e",
+      description:
+        "A new deployment is drawing uneven current across A/B feeds. Verify readings and move the approved noncritical load to restore headroom.",
+      label: "Rebalance PDU A/B branch load",
+      actions: [
+        "Read A-feed and B-feed branch currents",
+        "Identify approved noncritical load from the change record",
+        "Move load to the lower-utilization branch and update the panel schedule",
+      ],
+      completedSteps: new Set(),
+      penaltyRate: 0.55,
+      metricEffect: (dt) => {
+        state.health -= 0.012 * dt;
+      },
+    },
+  ],
+};
+
+const interactables = [];
+const colliders = [];
+const animated = [];
+
+const ui = {
+  startScreen: document.querySelector("#start-screen"),
+  startButton: document.querySelector("#start-button"),
+  hud: document.querySelector("#hud"),
+  health: document.querySelector("#health"),
+  temperature: document.querySelector("#temperature"),
+  pue: document.querySelector("#pue"),
+  ticketCount: document.querySelector("#ticket-count"),
+  clock: document.querySelector("#clock"),
+  tickets: document.querySelector("#tickets"),
+  interaction: document.querySelector("#interaction"),
+  interactionLabel: document.querySelector("#interaction-label"),
+  taskModal: document.querySelector("#task-modal"),
+  taskType: document.querySelector("#task-type"),
+  taskTitle: document.querySelector("#task-title"),
+  taskDescription: document.querySelector("#task-description"),
+  taskActions: document.querySelector("#task-actions"),
+  closeTask: document.querySelector("#close-task"),
+};
+
+const materials = {
+  floor: new THREE.MeshStandardMaterial({
+    color: 0x253134,
+    roughness: 0.72,
+    metalness: 0.1,
+  }),
+  wall: new THREE.MeshStandardMaterial({ color: 0x11191c, roughness: 0.86 }),
+  rack: new THREE.MeshStandardMaterial({
+    color: 0x121719,
+    roughness: 0.55,
+    metalness: 0.35,
+  }),
+  rackSide: new THREE.MeshStandardMaterial({
+    color: 0x222c30,
+    roughness: 0.58,
+    metalness: 0.24,
+  }),
+  coldAisle: new THREE.MeshStandardMaterial({
+    color: 0x16364a,
+    roughness: 0.8,
+    transparent: true,
+    opacity: 0.62,
+  }),
+  hotAisle: new THREE.MeshStandardMaterial({
+    color: 0x4c1c18,
+    roughness: 0.82,
+    transparent: true,
+    opacity: 0.55,
+  }),
+  cable: new THREE.MeshStandardMaterial({ color: 0x22282b, roughness: 0.5 }),
+  pipe: new THREE.MeshStandardMaterial({
+    color: 0x6b8ea0,
+    roughness: 0.42,
+    metalness: 0.6,
+  }),
+  hazard: new THREE.MeshStandardMaterial({
+    color: 0xff5f5f,
+    emissive: 0x4a0000,
+    roughness: 0.4,
+  }),
+  success: new THREE.MeshStandardMaterial({
+    color: 0x71f0c6,
+    emissive: 0x0b3a2b,
+    roughness: 0.42,
+  }),
+};
+
+function box(name, size, position, material, cast = true, receive = true) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material);
+  mesh.name = name;
+  mesh.position.set(...position);
+  mesh.castShadow = cast;
+  mesh.receiveShadow = receive;
+  world.add(mesh);
+  return mesh;
+}
+
+function addCollider(center, size) {
+  const bounds = new THREE.Box3().setFromCenterAndSize(
+    new THREE.Vector3(...center),
+    new THREE.Vector3(...size),
+  );
+  colliders.push(bounds);
+}
+
+function buildRoom() {
+  box("raised access floor", [36, 0.18, 30], [0, -0.09, 0], materials.floor, false);
+  box("north wall", [36, 5, 0.35], [0, 2.5, -15], materials.wall, false);
+  box("south wall", [36, 5, 0.35], [0, 2.5, 15], materials.wall, false);
+  box("west wall", [0.35, 5, 30], [-18, 2.5, 0], materials.wall, false);
+  box("east wall", [0.35, 5, 30], [18, 2.5, 0], materials.wall, false);
+  box("ceiling grid", [36, 0.16, 30], [0, 5.1, 0], materials.wall, false);
+
+  addCollider([0, 2.5, -15], [36, 5, 0.8]);
+  addCollider([0, 2.5, 15], [36, 5, 0.8]);
+  addCollider([-18, 2.5, 0], [0.8, 5, 30]);
+  addCollider([18, 2.5, 0], [0.8, 5, 30]);
+
+  const gridMat = new THREE.MeshBasicMaterial({
+    color: 0x506066,
+    transparent: true,
+    opacity: 0.22,
+  });
+  for (let x = -17; x <= 17; x += 2) {
+    box("floor seam", [0.025, 0.012, 30], [x, 0.012, 0], gridMat, false, false);
+  }
+  for (let z = -14; z <= 14; z += 2) {
+    box("floor seam", [36, 0.012, 0.025], [0, 0.012, z], gridMat, false, false);
+  }
+
+  const coldMat = materials.coldAisle;
+  const hotMat = materials.hotAisle;
+  box("cold aisle blue tile", [4.8, 0.025, 24], [-8, 0.02, 0], coldMat, false, false);
+  box("cold aisle blue tile", [4.8, 0.025, 24], [8, 0.02, 0], coldMat, false, false);
+  box("hot aisle red tile", [4.8, 0.025, 24], [0, 0.021, 0], hotMat, false, false);
+
+  for (let i = -14; i <= 14; i += 4) {
+    const light = new THREE.RectAreaLight(0xe7fff5, 2.4, 3.6, 0.42);
+    light.position.set(0, 4.95, i);
+    light.rotation.x = -Math.PI / 2;
+    scene.add(light);
+    box("ceiling luminaire", [3.8, 0.05, 0.5], [0, 4.96, i], new THREE.MeshBasicMaterial({ color: 0xcfffea }), false, false);
+  }
+
+  const ambient = new THREE.HemisphereLight(0xc8fff0, 0x10191c, 0.9);
+  scene.add(ambient);
+  const sun = new THREE.DirectionalLight(0xf6fff8, 1.1);
+  sun.position.set(-8, 12, 10);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left = -24;
+  sun.shadow.camera.right = 24;
+  sun.shadow.camera.top = 24;
+  sun.shadow.camera.bottom = -24;
+  scene.add(sun);
+}
+
+function buildRack(x, z, rowLabel, index) {
+  const rack = box(
+    `${rowLabel}-${index} rack`,
+    [1.65, 3.2, 1.22],
+    [x, 1.6, z],
+    materials.rack,
+  );
+  addCollider([x, 1.6, z], [1.9, 3.2, 1.45]);
+
+  const front = box(
+    "perforated rack door",
+    [1.38, 2.74, 0.045],
+    [x, 1.72, z + 0.64],
+    new THREE.MeshStandardMaterial({
+      color: 0x090d0e,
+      roughness: 0.34,
+      metalness: 0.5,
+    }),
+  );
+  front.userData.parentRack = rack;
+  const ledMat = new THREE.MeshBasicMaterial({ color: 0x75f0c7 });
+  for (let u = 0; u < 9; u += 1) {
+    const led = box(
+      "status led",
+      [0.06, 0.035, 0.02],
+      [x + 0.58, 0.55 + u * 0.29, z + 0.675],
+      ledMat,
+      false,
+      false,
+    );
+    animated.push({
+      mesh: led,
+      update: (t) => {
+        led.material.color.setHex(Math.sin(t * 2 + u + index) > -0.2 ? 0x75f0c7 : 0x27463d);
+      },
+    });
+  }
+  for (let shelf = 0; shelf < 6; shelf += 1) {
+    box(
+      "server faceplate",
+      [1.14, 0.06, 0.03],
+      [x - 0.08, 0.72 + shelf * 0.37, z + 0.68],
+      materials.rackSide,
+      false,
+      false,
+    );
+  }
+  return rack;
+}
+
+function buildDataHall() {
+  for (const x of [-10.5, -6, 6, 10.5]) {
+    for (let z = -10; z <= 10; z += 2.3) {
+      buildRack(x, z, x < 0 ? "A" : "B", Math.round(z * 10));
+    }
+  }
+
+  for (const x of [-14.8, 14.8]) {
+    for (const z of [-8, 0, 8]) {
+      box("CRAC cooling unit", [2.6, 2.4, 1.5], [x, 1.2, z], new THREE.MeshStandardMaterial({
+        color: 0xd2d8d5,
+        roughness: 0.42,
+        metalness: 0.12,
+      }));
+      addCollider([x, 1.2, z], [2.9, 2.4, 1.8]);
+      box("CRAC vent", [1.8, 0.18, 0.08], [x, 2.12, z + 0.78], materials.rackSide, false, false);
+    }
+  }
+
+  box("UPS cabinet", [3.2, 2.4, 1.8], [14, 1.2, 10.2], new THREE.MeshStandardMaterial({
+    color: 0x263239,
+    roughness: 0.5,
+    metalness: 0.24,
+  }));
+  addCollider([14, 1.2, 10.2], [3.5, 2.4, 2.1]);
+
+  box("PDU cabinet", [2.4, 2.1, 1.2], [-6, 1.05, 11.7], new THREE.MeshStandardMaterial({
+    color: 0x1c2b24,
+    roughness: 0.48,
+    metalness: 0.28,
+  }));
+  addCollider([-6, 1.05, 11.7], [2.7, 2.1, 1.5]);
+
+  for (const z of [-10, -2, 6]) {
+    const tray = box("overhead cable tray", [28, 0.16, 0.55], [0, 4.2, z], materials.cable, false, false);
+    tray.castShadow = false;
+    for (let x = -13; x <= 13; x += 4) {
+      box("tray support", [0.08, 1.1, 0.08], [x, 4.65, z], materials.cable, false, false);
+    }
+  }
+
+  const pipeGeom = new THREE.CylinderGeometry(0.09, 0.09, 29, 16);
+  const pipe = new THREE.Mesh(pipeGeom, materials.pipe);
+  pipe.rotation.z = Math.PI / 2;
+  pipe.position.set(0, 4.55, -7.8);
+  pipe.castShadow = true;
+  world.add(pipe);
+
+  const doorMat = new THREE.MeshStandardMaterial({ color: 0x19313a, roughness: 0.58 });
+  box("secure exit door", [2.2, 3.2, 0.16], [0, 1.6, 14.82], doorMat, true, false);
+}
+
+function addIncidentMarkers() {
+  for (const ticket of state.tickets) {
+    const group = new THREE.Group();
+    group.position.copy(ticket.location);
+    group.userData.ticket = ticket;
+
+    const marker = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.6, 0.6, 0.04, 40),
+      new THREE.MeshBasicMaterial({
+        color: new THREE.Color(ticket.accent),
+        transparent: true,
+        opacity: 0.42,
+      }),
+    );
+    marker.position.y = 0.03;
+    group.add(marker);
+
+    const beacon = new THREE.PointLight(new THREE.Color(ticket.accent), 1.8, 6);
+    beacon.position.set(0, 1.1, 0);
+    group.add(beacon);
+
+    if (ticket.id === "cooling-leak") {
+      const puddle = new THREE.Mesh(
+        new THREE.CircleGeometry(0.95, 32),
+        new THREE.MeshStandardMaterial({
+          color: 0x4ca7d4,
+          emissive: 0x07344a,
+          transparent: true,
+          opacity: 0.68,
+          roughness: 0.18,
+        }),
+      );
+      puddle.rotation.x = -Math.PI / 2;
+      puddle.position.set(0.25, 0.045, 0);
+      group.add(puddle);
+      animated.push({
+        mesh: puddle,
+        update: (t) => {
+          puddle.scale.setScalar(1 + Math.sin(t * 2.8) * 0.035);
+        },
+      });
+      for (let i = 0; i < 14; i += 1) {
+        const drop = new THREE.Mesh(
+          new THREE.SphereGeometry(0.035, 12, 8),
+          new THREE.MeshBasicMaterial({ color: 0x7ccfff }),
+        );
+        drop.position.set(Math.random() * 0.16 - 0.08, 2.8 - Math.random() * 1.4, Math.random() * 0.16 - 0.08);
+        group.add(drop);
+        animated.push({
+          mesh: drop,
+          update: (t) => {
+            drop.position.y = 2.85 - ((t * 1.7 + i * 0.19) % 1.45);
+          },
+        });
+      }
+    }
+
+    if (ticket.id === "hot-aisle") {
+      const heat = new THREE.Mesh(
+        new THREE.BoxGeometry(3.6, 1.8, 0.18),
+        new THREE.MeshBasicMaterial({
+          color: 0xff7046,
+          transparent: true,
+          opacity: 0.18,
+          depthWrite: false,
+        }),
+      );
+      heat.position.y = 1.4;
+      group.add(heat);
+      animated.push({
+        mesh: heat,
+        update: (t) => {
+          heat.material.opacity = 0.12 + Math.sin(t * 3.2) * 0.04;
+          heat.position.y = 1.4 + Math.sin(t * 1.8) * 0.08;
+        },
+      });
+    }
+
+    if (ticket.id === "ups-alarm") {
+      const alarm = new THREE.Mesh(
+        new THREE.SphereGeometry(0.16, 18, 12),
+        materials.hazard,
+      );
+      alarm.position.set(0, 2.45, -0.78);
+      group.add(alarm);
+      animated.push({
+        mesh: alarm,
+        update: (t) => {
+          alarm.material.emissiveIntensity = Math.sin(t * 8) > 0 ? 1.8 : 0.35;
+        },
+      });
+    }
+
+    if (ticket.id === "pdu-load") {
+      const bars = new THREE.Group();
+      for (let i = 0; i < 4; i += 1) {
+        const bar = new THREE.Mesh(
+          new THREE.BoxGeometry(0.18, 0.2 + i * 0.16, 0.08),
+          new THREE.MeshBasicMaterial({ color: i % 2 ? 0x71f0c6 : 0xffd166 }),
+        );
+        bar.position.set(-0.36 + i * 0.24, 1.35 + i * 0.08, -0.65);
+        bars.add(bar);
+      }
+      group.add(bars);
+    }
+
+    world.add(group);
+    interactables.push(group);
+  }
+}
+
+function createScene() {
+  buildRoom();
+  buildDataHall();
+  addIncidentMarkers();
+}
+
+function startGame({ pointerLock = true } = {}) {
+  state.started = true;
+  state.paused = false;
+  ui.startScreen.classList.add("hidden");
+  ui.hud.classList.remove("hidden");
+  if (pointerLock) canvas.requestPointerLock?.();
+}
+
+function updateCameraRotation() {
+  camera.rotation.order = "YXZ";
+  camera.rotation.y = player.yaw;
+  camera.rotation.x = player.pitch;
+}
+
+function canMoveTo(next) {
+  const playerBox = new THREE.Box3().setFromCenterAndSize(
+    new THREE.Vector3(next.x, 0.95, next.z),
+    new THREE.Vector3(player.radius * 2, 1.9, player.radius * 2),
+  );
+  return !colliders.some((box3) => box3.intersectsBox(playerBox));
+}
+
+function updateMovement(dt) {
+  if (!state.started || state.paused) return;
+  const forward = new THREE.Vector3(Math.sin(player.yaw), 0, Math.cos(player.yaw));
+  const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
+  const direction = new THREE.Vector3();
+  if (keys.has("KeyW")) direction.add(forward);
+  if (keys.has("KeyS")) direction.sub(forward);
+  if (keys.has("KeyD")) direction.add(right);
+  if (keys.has("KeyA")) direction.sub(right);
+  if (direction.lengthSq() > 0) direction.normalize();
+
+  const sprint = keys.has("ShiftLeft") || keys.has("ShiftRight");
+  const step = direction.multiplyScalar(player.speed * (sprint ? 1.45 : 1) * dt);
+  const nextX = player.position.clone().add(new THREE.Vector3(step.x, 0, 0));
+  if (canMoveTo(nextX)) player.position.x = nextX.x;
+  const nextZ = player.position.clone().add(new THREE.Vector3(0, 0, step.z));
+  if (canMoveTo(nextZ)) player.position.z = nextZ.z;
+  player.position.y = 1.72 + Math.sin(clock.elapsedTime * 9) * Math.min(step.length() * 0.14, 0.03);
+}
+
+function updateActiveTarget() {
+  raycaster.setFromCamera(mouseCenter, camera);
+  const nearby = interactables
+    .filter((target) => !isTicketDone(target.userData.ticket))
+    .map((target) => ({
+      target,
+      distance: target.position.distanceTo(camera.position),
+      angle: raycaster.ray.direction.angleTo(
+        target.position.clone().sub(camera.position).normalize(),
+      ),
+    }))
+    .filter((entry) => entry.distance < 4.2 && entry.angle < 0.65)
+    .sort((a, b) => a.distance - b.distance);
+
+  state.activeTarget = nearby[0]?.target ?? null;
+  if (state.activeTarget) {
+    ui.interaction.classList.remove("hidden");
+    ui.interactionLabel.textContent = state.activeTarget.userData.ticket.label;
+  } else {
+    ui.interaction.classList.add("hidden");
+  }
+}
+
+function isTicketDone(ticket) {
+  return ticket.completedSteps.size === ticket.actions.length;
+}
+
+function openTask(ticket) {
+  state.paused = true;
+  document.exitPointerLock?.();
+  ui.taskType.textContent = ticket.type;
+  ui.taskTitle.textContent = ticket.title;
+  ui.taskDescription.textContent = ticket.description;
+  ui.taskActions.innerHTML = "";
+
+  ticket.actions.forEach((action, index) => {
+    const button = document.createElement("button");
+    button.className = `task-action ${ticket.completedSteps.has(index) ? "complete" : ""}`;
+    button.innerHTML = `<span class="icon">${ticket.completedSteps.has(index) ? "✓" : index + 1}</span><span>${action}</span>`;
+    button.addEventListener("click", () => {
+      ticket.completedSteps.add(index);
+      if (isTicketDone(ticket)) {
+        state.health = Math.min(100, state.health + 8);
+        state.temperature = Math.max(21.4, state.temperature - (ticket.id === "hot-aisle" ? 1.2 : 0.25));
+        state.pue = Math.max(1.31, state.pue - 0.035);
+        markIncidentResolved(ticket);
+      }
+      openTask(ticket);
+      renderTickets();
+    });
+    ui.taskActions.append(button);
+  });
+
+  ui.taskModal.classList.remove("hidden");
+}
+
+function closeTask() {
+  state.paused = false;
+  ui.taskModal.classList.add("hidden");
+  if (state.started) canvas.requestPointerLock?.();
+}
+
+function markIncidentResolved(ticket) {
+  const target = interactables.find((item) => item.userData.ticket === ticket);
+  if (!target) return;
+  target.children.forEach((child) => {
+    if (child.material?.color) child.material.color.set(0x71f0c6);
+    if (child.material?.emissive) child.material.emissive.set(0x0b3a2b);
+  });
+}
+
+function runIncidents(dt) {
+  for (const ticket of state.tickets) {
+    if (isTicketDone(ticket)) continue;
+    state.health -= ticket.penaltyRate * dt * 0.035;
+    ticket.metricEffect(dt);
+  }
+  state.health = THREE.MathUtils.clamp(state.health, 0, 100);
+  state.temperature = THREE.MathUtils.clamp(state.temperature, 19, 34);
+  state.pue = THREE.MathUtils.clamp(state.pue, 1.25, 2.1);
+  state.minutes += dt * 2.6;
+}
+
+function renderTickets() {
+  ui.tickets.innerHTML = "";
+  for (const ticket of state.tickets) {
+    const done = isTicketDone(ticket);
+    const item = document.createElement("article");
+    item.className = `ticket ${done ? "done" : ""}`;
+    item.style.setProperty("--accent", done ? "#6f7d80" : ticket.accent);
+    item.innerHTML = `
+      <strong>${done ? "Resolved" : ticket.type}: ${ticket.title}</strong>
+      <p>${ticket.completedSteps.size}/${ticket.actions.length} actions complete</p>
+    `;
+    ui.tickets.append(item);
+  }
+  ui.ticketCount.textContent = String(state.tickets.filter((ticket) => !isTicketDone(ticket)).length);
+}
+
+function updateHud() {
+  ui.health.textContent = `${Math.round(state.health)}%`;
+  ui.temperature.textContent = `${state.temperature.toFixed(1)}C`;
+  ui.pue.textContent = state.pue.toFixed(2);
+  const hours = Math.floor(state.minutes / 60) % 24;
+  const minutes = Math.floor(state.minutes % 60);
+  ui.clock.textContent = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  updateMovement(dt);
+  updateActiveTarget();
+  if (!state.paused) runIncidents(dt);
+  for (const item of animated) item.update(clock.elapsedTime);
+  updateHud();
+  renderer.render(scene, camera);
+}
+
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+window.addEventListener("keydown", (event) => {
+  keys.add(event.code);
+  if (event.code === "KeyE" && state.activeTarget && !ui.taskModal.classList.contains("hidden")) {
+    return;
+  }
+  if (event.code === "KeyE" && state.activeTarget) {
+    openTask(state.activeTarget.userData.ticket);
+  }
+  if (event.code === "Escape" && !ui.taskModal.classList.contains("hidden")) {
+    closeTask();
+  }
+});
+
+window.addEventListener("keyup", (event) => {
+  keys.delete(event.code);
+});
+
+window.addEventListener("mousemove", (event) => {
+  if (!state.started || state.paused || document.pointerLockElement !== canvas) return;
+  player.yaw -= event.movementX * 0.002;
+  player.pitch -= event.movementY * 0.002;
+  player.pitch = THREE.MathUtils.clamp(player.pitch, -1.25, 1.25);
+  updateCameraRotation();
+});
+
+canvas.addEventListener("click", () => {
+  if (state.started && !state.paused) canvas.requestPointerLock?.();
+});
+
+ui.startButton.addEventListener("click", startGame);
+ui.closeTask.addEventListener("click", closeTask);
+
+createScene();
+renderTickets();
+updateCameraRotation();
+animate();
+
+if (new URLSearchParams(window.location.search).get("autostart") === "1") {
+  startGame({ pointerLock: false });
+}
