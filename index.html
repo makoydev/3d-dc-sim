@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Data Center Shift Simulator</title>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="world"></canvas>
+
+      <section id="start-screen" class="overlay start-screen">
+        <div class="briefing">
+          <p class="eyebrow">First-person operations training</p>
+          <h1>Data Center Shift Simulator</h1>
+          <p>
+            Walk the white space, diagnose active alarms, and complete realistic
+            manager/engineer response tasks before the site health drops.
+          </p>
+          <button id="start-button" class="primary-button">Start Shift</button>
+        </div>
+      </section>
+
+      <section id="hud" class="hud hidden" aria-live="polite">
+        <div class="topbar">
+          <div class="metric">
+            <span>Site health</span>
+            <strong id="health">100%</strong>
+          </div>
+          <div class="metric">
+            <span>Hall temp</span>
+            <strong id="temperature">22.0C</strong>
+          </div>
+          <div class="metric">
+            <span>PUE</span>
+            <strong id="pue">1.39</strong>
+          </div>
+          <div class="metric">
+            <span>Open tickets</span>
+            <strong id="ticket-count">0</strong>
+          </div>
+        </div>
+
+        <aside class="ticket-panel">
+          <div class="panel-heading">
+            <span>Active work orders</span>
+            <strong id="clock">08:00</strong>
+          </div>
+          <div id="tickets" class="tickets"></div>
+        </aside>
+
+        <div id="interaction" class="interaction hidden">
+          <span id="interaction-label"></span>
+          <button id="interact-button">E</button>
+        </div>
+
+        <div id="crosshair" class="crosshair" aria-hidden="true"></div>
+
+        <div class="controls">
+          <span>WASD</span>
+          <span>Move</span>
+          <span>Mouse</span>
+          <span>Look</span>
+          <span>E</span>
+          <span>Interact</span>
+        </div>
+
+        <section id="task-modal" class="task-modal hidden">
+          <div class="modal-panel">
+            <div>
+              <p id="task-type" class="eyebrow"></p>
+              <h2 id="task-title"></h2>
+              <p id="task-description"></p>
+            </div>
+            <div id="task-actions" class="task-actions"></div>
+            <button id="close-task" class="secondary-button">Back to floor</button>
+          </div>
+        </section>
+      </section>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
