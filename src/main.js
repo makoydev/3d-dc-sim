@@ -515,7 +515,7 @@ function canMoveTo(next) {
 
 function updateMovement(dt) {
   if (!state.started || state.paused) return;
-  const forward = new THREE.Vector3(Math.sin(player.yaw), 0, Math.cos(player.yaw));
+  const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
   const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
   const direction = new THREE.Vector3();
   if (keys.has("KeyW")) direction.add(forward);
