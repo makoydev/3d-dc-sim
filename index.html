@@ -49,6 +49,11 @@
           <div id="tickets" class="tickets"></div>
         </aside>
 
+        <div id="objective-compass" class="objective-compass" aria-label="Objective compass">
+          <div id="compass-track" class="compass-track"></div>
+          <div id="compass-hint" class="compass-hint">Nearest incident</div>
+        </div>
+
         <div id="interaction" class="interaction hidden">
           <span id="interaction-label"></span>
           <button id="interact-button">E</button>
@@ -74,6 +79,18 @@
             </div>
             <div id="task-actions" class="task-actions"></div>
             <button id="close-task" class="secondary-button">Back to floor</button>
+          </div>
+        </section>
+
+        <section id="score-modal" class="score-modal hidden" aria-live="assertive">
+          <div class="score-panel">
+            <p class="eyebrow">Shift report</p>
+            <h2 id="score-title">Shift complete</h2>
+            <div class="score-readout">
+              <span>Score</span>
+              <strong id="score-value">0</strong>
+            </div>
+            <div id="score-stats" class="score-stats"></div>
           </div>
         </section>
       </section>

@@ -1,6 +1,8 @@
 import "./styles.css";
 import * as THREE from "three";
+import { getObjectiveCompassItems } from "./compass.js";
 import { getMovementDirection } from "./movement.js";
+import { calculateShiftScore } from "./score.js";
 
 const canvas = document.querySelector("#world");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -46,6 +48,9 @@ const state = {
   temperature: 22,
   pue: 1.39,
   minutes: 8 * 60,
+  startMinutes: 8 * 60,
+  finished: false,
+  finishReason: "",
   activeTarget: null,
   tickets: [
     {
@@ -145,6 +150,8 @@ const ui = {
   pue: document.querySelector("#pue"),
   ticketCount: document.querySelector("#ticket-count"),
   clock: document.querySelector("#clock"),
+  compassTrack: document.querySelector("#compass-track"),
+  compassHint: document.querySelector("#compass-hint"),
   tickets: document.querySelector("#tickets"),
   interaction: document.querySelector("#interaction"),
   interactionLabel: document.querySelector("#interaction-label"),
@@ -154,6 +161,10 @@ const ui = {
   taskDescription: document.querySelector("#task-description"),
   taskActions: document.querySelector("#task-actions"),
   closeTask: document.querySelector("#close-task"),
+  scoreModal: document.querySelector("#score-modal"),
+  scoreTitle: document.querySelector("#score-title"),
+  scoreValue: document.querySelector("#score-value"),
+  scoreStats: document.querySelector("#score-stats"),
 };
 
 const materials = {
@@ -500,6 +511,10 @@ function startGame({ pointerLock = true } = {}) {
   if (pointerLock) canvas.requestPointerLock?.();
 }
 
+function getElapsedShiftMinutes() {
+  return Math.max(0, Math.floor(state.minutes - state.startMinutes));
+}
+
 function updateCameraRotation() {
   camera.rotation.order = "YXZ";
   camera.rotation.y = player.yaw;
@@ -527,6 +542,7 @@ function updateMovement(dt) {
 }
 
 function updateActiveTarget() {
+  if (state.finished) return;
   raycaster.setFromCamera(mouseCenter, camera);
   const nearby = interactables
     .filter((target) => !isTicketDone(target.userData.ticket))
@@ -554,6 +570,7 @@ function isTicketDone(ticket) {
 }
 
 function openTask(ticket) {
+  if (state.finished) return;
   state.paused = true;
   document.exitPointerLock?.();
   ui.taskType.textContent = ticket.type;
@@ -575,6 +592,7 @@ function openTask(ticket) {
       }
       openTask(ticket);
       renderTickets();
+      checkShiftEnd();
     });
     ui.taskActions.append(button);
   });
@@ -583,6 +601,7 @@ function openTask(ticket) {
 }
 
 function closeTask() {
+  if (state.finished) return;
   state.paused = false;
   ui.taskModal.classList.add("hidden");
   if (state.started) canvas.requestPointerLock?.();
@@ -598,6 +617,7 @@ function markIncidentResolved(ticket) {
 }
 
 function runIncidents(dt) {
+  if (state.finished) return;
   for (const ticket of state.tickets) {
     if (isTicketDone(ticket)) continue;
     state.health -= ticket.penaltyRate * dt * 0.035;
@@ -607,6 +627,7 @@ function runIncidents(dt) {
   state.temperature = THREE.MathUtils.clamp(state.temperature, 19, 34);
   state.pue = THREE.MathUtils.clamp(state.pue, 1.25, 2.1);
   state.minutes += dt * 2.6;
+  if (state.health <= 0) finishShift("Site health reached zero");
 }
 
 function renderTickets() {
@@ -625,6 +646,74 @@ function renderTickets() {
   ui.ticketCount.textContent = String(state.tickets.filter((ticket) => !isTicketDone(ticket)).length);
 }
 
+function updateCompass() {
+  const items = getObjectiveCompassItems({
+    playerPosition: player.position,
+    yaw: player.yaw,
+    tickets: state.tickets.map((ticket) => ({
+      id: ticket.id,
+      title: ticket.title,
+      accent: ticket.accent,
+      location: ticket.location,
+      done: isTicketDone(ticket),
+    })),
+  });
+
+  ui.compassTrack.innerHTML = "";
+  ui.compassHint.textContent = items.length > 0 ? "Nearest incident" : "All incidents clear";
+
+  for (const item of items) {
+    const marker = document.createElement("div");
+    marker.className = `compass-marker ${item.isBehind ? "behind" : ""}`;
+    marker.style.setProperty("--accent", item.accent);
+    marker.style.left = `${50 + item.offset * 44}%`;
+    marker.title = `${item.title} - ${Math.round(item.distance)}m`;
+    marker.innerHTML = `
+      <span class="marker-dot"></span>
+      <span class="marker-label">${Math.round(item.distance)}m</span>
+    `;
+    ui.compassTrack.append(marker);
+  }
+}
+
+function finishShift(reason) {
+  if (state.finished) return;
+
+  state.finished = true;
+  state.paused = true;
+  state.finishReason = reason;
+  keys.clear();
+  document.exitPointerLock?.();
+
+  const resolvedTickets = state.tickets.filter(isTicketDone).length;
+  const score = calculateShiftScore({
+    health: state.health,
+    pue: state.pue,
+    temperature: state.temperature,
+    resolvedTickets,
+    totalTickets: state.tickets.length,
+  });
+
+  ui.scoreTitle.textContent = reason;
+  ui.scoreValue.textContent = String(score);
+  ui.scoreStats.innerHTML = `
+    <div><span>Resolved</span><strong>${resolvedTickets}/${state.tickets.length}</strong></div>
+    <div><span>Elapsed</span><strong>${getElapsedShiftMinutes()} min</strong></div>
+    <div><span>Health</span><strong>${Math.round(state.health)}%</strong></div>
+    <div><span>Peak temp</span><strong>${state.temperature.toFixed(1)}C</strong></div>
+    <div><span>Final PUE</span><strong>${state.pue.toFixed(2)}</strong></div>
+  `;
+  ui.taskModal.classList.add("hidden");
+  ui.interaction.classList.add("hidden");
+  ui.scoreModal.classList.remove("hidden");
+}
+
+function checkShiftEnd() {
+  if (state.tickets.every(isTicketDone)) {
+    finishShift("Shift complete");
+  }
+}
+
 function updateHud() {
   ui.health.textContent = `${Math.round(state.health)}%`;
   ui.temperature.textContent = `${state.temperature.toFixed(1)}C`;
@@ -632,6 +721,7 @@ function updateHud() {
   const hours = Math.floor(state.minutes / 60) % 24;
   const minutes = Math.floor(state.minutes % 60);
   ui.clock.textContent = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  updateCompass();
 }
 
 function animate() {
