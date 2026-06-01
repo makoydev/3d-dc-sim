@@ -12,3 +12,21 @@ export function calculateShiftScore({ health, pue, temperature, resolvedTickets,
       resolutionScore * 0.25,
   );
 }
+
+export function calculateAverageResponseMinutes(tickets) {
+  const responseTimes = tickets
+    .map((ticket) => ticket.resolvedAtMinute)
+    .filter((minute) => Number.isFinite(minute));
+
+  if (responseTimes.length === 0) return null;
+
+  return Math.round(
+    responseTimes.reduce((sum, minute) => sum + minute, 0) / responseTimes.length,
+  );
+}
+
+export function formatResponseMinutes(minutes) {
+  if (!Number.isFinite(minutes)) return "Unresolved";
+  if (minutes < 1) return "<1 min";
+  return `${Math.round(minutes)} min`;
+}

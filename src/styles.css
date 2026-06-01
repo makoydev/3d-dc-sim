@@ -211,6 +211,14 @@ h1 {
   border-left-color: #6f7d80;
 }
 
+.ticket[data-stage="degraded"] {
+  background: rgba(255, 209, 102, 0.12);
+}
+
+.ticket[data-stage="critical"] {
+  background: rgba(247, 101, 101, 0.14);
+}
+
 .objective-compass {
   position: absolute;
   top: 88px;
@@ -269,6 +277,21 @@ h1 {
   font-size: 0.72rem;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.settings-button {
+  position: absolute;
+  top: 88px;
+  left: 16px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(178, 231, 215, 0.18);
+  border-radius: 8px;
+  background: rgba(6, 13, 15, 0.78);
+  color: #eef5f1;
+  cursor: pointer;
+  font-weight: 800;
+  pointer-events: auto;
 }
 
 .interaction {
@@ -336,7 +359,8 @@ h1 {
 }
 
 .task-modal,
-.score-modal {
+.score-modal,
+.settings-modal {
   position: absolute;
   inset: 0;
   display: grid;
@@ -346,7 +370,8 @@ h1 {
 }
 
 .modal-panel,
-.score-panel {
+.score-panel,
+.settings-panel {
   display: grid;
   gap: 18px;
   width: min(620px, calc(100vw - 32px));
@@ -360,7 +385,8 @@ h1 {
 }
 
 .modal-panel h2,
-.score-panel h2 {
+.score-panel h2,
+.settings-panel h2 {
   margin-bottom: 8px;
   font-size: 1.55rem;
   letter-spacing: 0;
@@ -402,7 +428,7 @@ h1 {
 
 .score-stats {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -420,6 +446,66 @@ h1 {
 
 .score-stats strong {
   font-size: 1.22rem;
+}
+
+.score-responses {
+  display: grid;
+  gap: 8px;
+  text-align: left;
+}
+
+.score-responses div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.score-responses span {
+  min-width: 0;
+  color: #c7d8d2;
+  font-size: 0.84rem;
+}
+
+.score-responses strong {
+  flex: 0 0 auto;
+  color: #eef5f1;
+}
+
+.settings-panel {
+  width: min(440px, calc(100vw - 32px));
+}
+
+.setting-row,
+.setting-check {
+  display: grid;
+  gap: 8px;
+  color: #d9eae4;
+  font-weight: 800;
+}
+
+.setting-row {
+  grid-template-columns: 1fr auto;
+}
+
+.setting-row input {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: #71f0c6;
+}
+
+.setting-check {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+
+.setting-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: #71f0c6;
 }
 
 .task-actions {
@@ -486,6 +572,15 @@ h1 {
 
   .objective-compass {
     top: 138px;
+  }
+
+  .settings-button {
+    top: 138px;
+    left: 12px;
+  }
+
+  .score-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .controls {

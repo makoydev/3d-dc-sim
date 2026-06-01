@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { calculateShiftScore } from "../src/score.js";
+import {
+  calculateAverageResponseMinutes,
+  calculateShiftScore,
+  formatResponseMinutes,
+} from "../src/score.js";
 
 test("perfect shift receives a perfect score", () => {
   assert.equal(
@@ -46,4 +50,21 @@ test("score is clamped when health is depleted", () => {
     }),
     0,
   );
+});
+
+test("average response ignores unresolved tickets", () => {
+  assert.equal(
+    calculateAverageResponseMinutes([
+      { resolvedAtMinute: 4 },
+      { resolvedAtMinute: null },
+      { resolvedAtMinute: 10 },
+    ]),
+    7,
+  );
+});
+
+test("response time formatting handles unresolved and quick responses", () => {
+  assert.equal(formatResponseMinutes(null), "Unresolved");
+  assert.equal(formatResponseMinutes(0), "<1 min");
+  assert.equal(formatResponseMinutes(8.4), "8 min");
 });

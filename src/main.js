@@ -1,8 +1,13 @@
 import "./styles.css";
 import * as THREE from "three";
 import { getObjectiveCompassItems } from "./compass.js";
+import { getIncidentPressureMultiplier, getIncidentStage } from "./incidents.js";
 import { getMovementDirection } from "./movement.js";
-import { calculateShiftScore } from "./score.js";
+import {
+  calculateAverageResponseMinutes,
+  calculateShiftScore,
+  formatResponseMinutes,
+} from "./score.js";
 
 const canvas = document.querySelector("#world");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -52,6 +57,11 @@ const state = {
   finished: false,
   finishReason: "",
   activeTarget: null,
+  settings: {
+    mouseSensitivity: 2,
+    invertY: false,
+    movementSpeed: 5.2,
+  },
   tickets: [
     {
       id: "cooling-leak",
@@ -68,6 +78,8 @@ const state = {
         "Place absorbent pads and raise a facilities repair ticket",
       ],
       completedSteps: new Set(),
+      resolvedAtMinute: null,
+      stage: "watch",
       penaltyRate: 0.7,
       metricEffect: (dt) => {
         state.pue += 0.00035 * dt;
@@ -88,6 +100,8 @@ const state = {
         "Check return-air temperature after stabilization",
       ],
       completedSteps: new Set(),
+      resolvedAtMinute: null,
+      stage: "watch",
       penaltyRate: 0.9,
       metricEffect: (dt) => {
         state.temperature += 0.045 * dt;
@@ -109,6 +123,8 @@ const state = {
         "Isolate the affected battery string and notify electrical vendor",
       ],
       completedSteps: new Set(),
+      resolvedAtMinute: null,
+      stage: "watch",
       penaltyRate: 1.1,
       metricEffect: (dt) => {
         state.health -= 0.018 * dt;
@@ -129,6 +145,8 @@ const state = {
         "Move load to the lower-utilization branch and update the panel schedule",
       ],
       completedSteps: new Set(),
+      resolvedAtMinute: null,
+      stage: "watch",
       penaltyRate: 0.55,
       metricEffect: (dt) => {
         state.health -= 0.012 * dt;
@@ -152,6 +170,14 @@ const ui = {
   clock: document.querySelector("#clock"),
   compassTrack: document.querySelector("#compass-track"),
   compassHint: document.querySelector("#compass-hint"),
+  settingsButton: document.querySelector("#settings-button"),
+  settingsModal: document.querySelector("#settings-modal"),
+  mouseSensitivity: document.querySelector("#mouse-sensitivity"),
+  mouseSensitivityValue: document.querySelector("#mouse-sensitivity-value"),
+  invertY: document.querySelector("#invert-y"),
+  movementSpeed: document.querySelector("#movement-speed"),
+  movementSpeedValue: document.querySelector("#movement-speed-value"),
+  closeSettings: document.querySelector("#close-settings"),
   tickets: document.querySelector("#tickets"),
   interaction: document.querySelector("#interaction"),
   interactionLabel: document.querySelector("#interaction-label"),
@@ -165,6 +191,8 @@ const ui = {
   scoreTitle: document.querySelector("#score-title"),
   scoreValue: document.querySelector("#score-value"),
   scoreStats: document.querySelector("#score-stats"),
+  scoreResponses: document.querySelector("#score-responses"),
+  restartShift: document.querySelector("#restart-shift"),
 };
 
 const materials = {
@@ -406,6 +434,8 @@ function addIncidentMarkers() {
     const beacon = new THREE.PointLight(new THREE.Color(ticket.accent), 1.8, 6);
     beacon.position.set(0, 1.1, 0);
     group.add(beacon);
+    group.userData.marker = marker;
+    group.userData.beacon = beacon;
 
     if (ticket.id === "cooling-leak") {
       const puddle = new THREE.Mesh(
@@ -533,7 +563,7 @@ function updateMovement(dt) {
   if (!state.started || state.paused) return;
   const direction = getMovementDirection(player.yaw, keys);
   const sprint = keys.has("ShiftLeft") || keys.has("ShiftRight");
-  const step = direction.multiplyScalar(player.speed * (sprint ? 1.45 : 1) * dt);
+  const step = direction.multiplyScalar(state.settings.movementSpeed * (sprint ? 1.45 : 1) * dt);
   const nextX = player.position.clone().add(new THREE.Vector3(step.x, 0, 0));
   if (canMoveTo(nextX)) player.position.x = nextX.x;
   const nextZ = player.position.clone().add(new THREE.Vector3(0, 0, step.z));
@@ -585,6 +615,7 @@ function openTask(ticket) {
     button.addEventListener("click", () => {
       ticket.completedSteps.add(index);
       if (isTicketDone(ticket)) {
+        ticket.resolvedAtMinute ??= getElapsedShiftMinutes();
         state.health = Math.min(100, state.health + 8);
         state.temperature = Math.max(21.4, state.temperature - (ticket.id === "hot-aisle" ? 1.2 : 0.25));
         state.pue = Math.max(1.31, state.pue - 0.035);
@@ -607,6 +638,36 @@ function closeTask() {
   if (state.started) canvas.requestPointerLock?.();
 }
 
+function openSettings() {
+  if (!state.started || state.finished) return;
+  state.paused = true;
+  document.exitPointerLock?.();
+  syncSettingsInputs();
+  ui.settingsModal.classList.remove("hidden");
+}
+
+function closeSettings() {
+  if (state.finished) return;
+  state.paused = false;
+  ui.settingsModal.classList.add("hidden");
+  if (state.started) canvas.requestPointerLock?.();
+}
+
+function syncSettingsInputs() {
+  ui.mouseSensitivity.value = String(state.settings.mouseSensitivity);
+  ui.mouseSensitivityValue.textContent = state.settings.mouseSensitivity.toFixed(1);
+  ui.invertY.checked = state.settings.invertY;
+  ui.movementSpeed.value = String(state.settings.movementSpeed);
+  ui.movementSpeedValue.textContent = state.settings.movementSpeed.toFixed(1);
+}
+
+function updateSettings() {
+  state.settings.mouseSensitivity = Number(ui.mouseSensitivity.value);
+  state.settings.invertY = ui.invertY.checked;
+  state.settings.movementSpeed = Number(ui.movementSpeed.value);
+  syncSettingsInputs();
+}
+
 function markIncidentResolved(ticket) {
   const target = interactables.find((item) => item.userData.ticket === ticket);
   if (!target) return;
@@ -616,13 +677,40 @@ function markIncidentResolved(ticket) {
   });
 }
 
+function updateIncidentVisual(ticket, stage) {
+  const target = interactables.find((item) => item.userData.ticket === ticket);
+  if (!target || isTicketDone(ticket)) return;
+
+  const stageColor = stage.id === "critical" ? "#f76565" : stage.id === "degraded" ? "#ffd166" : ticket.accent;
+  const color = new THREE.Color(stageColor);
+  target.userData.marker?.material.color.set(color);
+  if (target.userData.marker?.material) {
+    target.userData.marker.material.opacity = stage.id === "critical" ? 0.68 : stage.id === "degraded" ? 0.54 : 0.42;
+  }
+  if (target.userData.beacon) {
+    target.userData.beacon.color.set(color);
+    target.userData.beacon.intensity = stage.id === "critical" ? 3.4 : stage.id === "degraded" ? 2.5 : 1.8;
+    target.userData.beacon.distance = stage.id === "critical" ? 8 : 6;
+  }
+}
+
 function runIncidents(dt) {
   if (state.finished) return;
+  const elapsedMinutes = getElapsedShiftMinutes();
+  let ticketStageChanged = false;
   for (const ticket of state.tickets) {
     if (isTicketDone(ticket)) continue;
-    state.health -= ticket.penaltyRate * dt * 0.035;
-    ticket.metricEffect(dt);
+    const stage = getIncidentStage(elapsedMinutes, false);
+    const pressureMultiplier = getIncidentPressureMultiplier(stage.id);
+    if (ticket.stage !== stage.id) {
+      ticket.stage = stage.id;
+      ticketStageChanged = true;
+    }
+    updateIncidentVisual(ticket, stage);
+    state.health -= ticket.penaltyRate * pressureMultiplier * dt * 0.035;
+    ticket.metricEffect(dt * pressureMultiplier);
   }
+  if (ticketStageChanged) renderTickets();
   state.health = THREE.MathUtils.clamp(state.health, 0, 100);
   state.temperature = THREE.MathUtils.clamp(state.temperature, 19, 34);
   state.pue = THREE.MathUtils.clamp(state.pue, 1.25, 2.1);
@@ -637,9 +725,14 @@ function renderTickets() {
     const item = document.createElement("article");
     item.className = `ticket ${done ? "done" : ""}`;
     item.style.setProperty("--accent", done ? "#6f7d80" : ticket.accent);
+    const stage = getIncidentStage(getElapsedShiftMinutes(), done);
+    const detail = done
+      ? `Resolved in ${formatResponseMinutes(ticket.resolvedAtMinute)}`
+      : `${stage.label} - ${ticket.completedSteps.size}/${ticket.actions.length} actions complete`;
+    item.dataset.stage = stage.id;
     item.innerHTML = `
       <strong>${done ? "Resolved" : ticket.type}: ${ticket.title}</strong>
-      <p>${ticket.completedSteps.size}/${ticket.actions.length} actions complete</p>
+      <p>${detail}</p>
     `;
     ui.tickets.append(item);
   }
@@ -686,6 +779,7 @@ function finishShift(reason) {
   document.exitPointerLock?.();
 
   const resolvedTickets = state.tickets.filter(isTicketDone).length;
+  const averageResponse = calculateAverageResponseMinutes(state.tickets);
   const score = calculateShiftScore({
     health: state.health,
     pue: state.pue,
@@ -699,11 +793,23 @@ function finishShift(reason) {
   ui.scoreStats.innerHTML = `
     <div><span>Resolved</span><strong>${resolvedTickets}/${state.tickets.length}</strong></div>
     <div><span>Elapsed</span><strong>${getElapsedShiftMinutes()} min</strong></div>
+    <div><span>Avg response</span><strong>${formatResponseMinutes(averageResponse)}</strong></div>
     <div><span>Health</span><strong>${Math.round(state.health)}%</strong></div>
     <div><span>Peak temp</span><strong>${state.temperature.toFixed(1)}C</strong></div>
     <div><span>Final PUE</span><strong>${state.pue.toFixed(2)}</strong></div>
   `;
+  ui.scoreResponses.innerHTML = state.tickets
+    .map(
+      (ticket) => `
+        <div>
+          <span>${ticket.title}</span>
+          <strong>${formatResponseMinutes(ticket.resolvedAtMinute)}</strong>
+        </div>
+      `,
+    )
+    .join("");
   ui.taskModal.classList.add("hidden");
+  ui.settingsModal.classList.add("hidden");
   ui.interaction.classList.add("hidden");
   ui.scoreModal.classList.remove("hidden");
 }
@@ -743,6 +849,10 @@ window.addEventListener("resize", () => {
 
 window.addEventListener("keydown", (event) => {
   keys.add(event.code);
+  if (event.code === "Escape" && !ui.settingsModal.classList.contains("hidden")) {
+    closeSettings();
+    return;
+  }
   if (event.code === "KeyE" && state.activeTarget && !ui.taskModal.classList.contains("hidden")) {
     return;
   }
@@ -760,8 +870,9 @@ window.addEventListener("keyup", (event) => {
 
 window.addEventListener("mousemove", (event) => {
   if (!state.started || state.paused || document.pointerLockElement !== canvas) return;
-  player.yaw -= event.movementX * 0.002;
-  player.pitch -= event.movementY * 0.002;
+  const sensitivity = state.settings.mouseSensitivity * 0.001;
+  player.yaw -= event.movementX * sensitivity;
+  player.pitch += event.movementY * (state.settings.invertY ? sensitivity : -sensitivity);
   player.pitch = THREE.MathUtils.clamp(player.pitch, -1.25, 1.25);
   updateCameraRotation();
 });
@@ -772,6 +883,31 @@ canvas.addEventListener("click", () => {
 
 ui.startButton.addEventListener("click", startGame);
 ui.closeTask.addEventListener("click", closeTask);
+ui.settingsButton.addEventListener("click", openSettings);
+ui.closeSettings.addEventListener("click", closeSettings);
+ui.mouseSensitivity.addEventListener("input", updateSettings);
+ui.invertY.addEventListener("change", updateSettings);
+ui.movementSpeed.addEventListener("input", updateSettings);
+ui.restartShift.addEventListener("click", () => {
+  window.location.reload();
+});
+
+if (new URLSearchParams(window.location.search).get("test") === "1") {
+  window.__simTest = {
+    moveToTicket: (ticketId) => {
+      const target = interactables.find((item) => item.userData.ticket.id === ticketId);
+      if (!target) return false;
+      const offset = new THREE.Vector3(0, 0, 2.4);
+      player.position.copy(target.position).add(offset);
+      player.position.y = 1.72;
+      player.yaw = Math.atan2(player.position.x - target.position.x, player.position.z - target.position.z);
+      player.pitch = 0;
+      updateCameraRotation();
+      updateActiveTarget();
+      return Boolean(state.activeTarget);
+    },
+  };
+}
 
 createScene();
 renderTickets();

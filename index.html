@@ -54,6 +54,8 @@
           <div id="compass-hint" class="compass-hint">Nearest incident</div>
         </div>
 
+        <button id="settings-button" class="settings-button">Settings</button>
+
         <div id="interaction" class="interaction hidden">
           <span id="interaction-label"></span>
           <button id="interact-button">E</button>
@@ -69,6 +71,30 @@
           <span>E</span>
           <span>Interact</span>
         </div>
+
+        <section id="settings-modal" class="settings-modal hidden">
+          <div class="settings-panel">
+            <div>
+              <p class="eyebrow">Controls</p>
+              <h2>Settings</h2>
+            </div>
+            <label class="setting-row">
+              <span>Mouse sensitivity</span>
+              <strong id="mouse-sensitivity-value">2.0</strong>
+              <input id="mouse-sensitivity" type="range" min="0.5" max="4" step="0.1" value="2" />
+            </label>
+            <label class="setting-check">
+              <input id="invert-y" type="checkbox" />
+              <span>Invert Y look</span>
+            </label>
+            <label class="setting-row">
+              <span>Movement speed</span>
+              <strong id="movement-speed-value">5.2</strong>
+              <input id="movement-speed" type="range" min="3" max="8" step="0.1" value="5.2" />
+            </label>
+            <button id="close-settings" class="secondary-button">Back to floor</button>
+          </div>
+        </section>
 
         <section id="task-modal" class="task-modal hidden">
           <div class="modal-panel">
@@ -91,6 +117,8 @@
               <strong id="score-value">0</strong>
             </div>
             <div id="score-stats" class="score-stats"></div>
+            <div id="score-responses" class="score-responses"></div>
+            <button id="restart-shift" class="primary-button">Restart Shift</button>
           </div>
         </section>
       </section>
