@@ -1,5 +1,6 @@
 import "./styles.css";
 import * as THREE from "three";
+import { getMovementDirection } from "./movement.js";
 
 const canvas = document.querySelector("#world");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -515,15 +516,7 @@ function canMoveTo(next) {
 
 function updateMovement(dt) {
   if (!state.started || state.paused) return;
-  const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
-  const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
-  const direction = new THREE.Vector3();
-  if (keys.has("KeyW")) direction.add(forward);
-  if (keys.has("KeyS")) direction.sub(forward);
-  if (keys.has("KeyD")) direction.add(right);
-  if (keys.has("KeyA")) direction.sub(right);
-  if (direction.lengthSq() > 0) direction.normalize();
-
+  const direction = getMovementDirection(player.yaw, keys);
   const sprint = keys.has("ShiftLeft") || keys.has("ShiftRight");
   const step = direction.multiplyScalar(player.speed * (sprint ? 1.45 : 1) * dt);
   const nextX = player.position.clone().add(new THREE.Vector3(step.x, 0, 0));
