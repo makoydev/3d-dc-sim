@@ -47,3 +47,17 @@ test("restarts a completed shift without reloading the page", async ({ page }) =
   expect(snapshot.state.minutes).toBeLessThan(481.5);
   expect(snapshot.state.playerPosition).toEqual([0, 1.72, 13]);
 });
+
+test("difficulty presets change escalation timing", async ({ page }) => {
+  await page.goto("/?test=1");
+
+  await page.getByRole("button", { name: "Expert" }).click();
+  await expect(page.getByRole("button", { name: "Expert" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Start Shift" }).click();
+
+  await page.evaluate(() => window.__simTest.setElapsedMinutes(5));
+
+  await expect(page.locator("#tickets")).toContainText("Degraded");
+  const snapshot = await page.evaluate(() => window.__simTest.snapshot());
+  expect(snapshot.difficulty).toBe("expert");
+});

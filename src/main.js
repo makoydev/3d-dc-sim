@@ -1,7 +1,11 @@
 import "./styles.css";
 import * as THREE from "three";
 import { getObjectiveCompassItems } from "./compass.js";
-import { getIncidentPressureMultiplier, getIncidentStage } from "./incidents.js";
+import {
+  DIFFICULTY_PRESETS,
+  getIncidentPressureMultiplier,
+  getIncidentStage,
+} from "./incidents.js";
 import { getMovementDirection } from "./movement.js";
 import {
   calculateAverageResponseMinutes,
@@ -66,6 +70,7 @@ const state = {
   activeTarget: null,
   journal: [],
   settings: {
+    difficulty: "standard",
     mouseSensitivity: 2,
     invertY: false,
     movementSpeed: 5.2,
@@ -186,6 +191,7 @@ const ui = {
   movementSpeed: document.querySelector("#movement-speed"),
   movementSpeedValue: document.querySelector("#movement-speed-value"),
   closeSettings: document.querySelector("#close-settings"),
+  difficultyOptions: document.querySelectorAll("[data-difficulty-option]"),
   tickets: document.querySelector("#tickets"),
   journalEntries: document.querySelector("#journal-entries"),
   interaction: document.querySelector("#interaction"),
@@ -761,6 +767,7 @@ function syncSettingsInputs() {
   ui.invertY.checked = state.settings.invertY;
   ui.movementSpeed.value = String(state.settings.movementSpeed);
   ui.movementSpeedValue.textContent = state.settings.movementSpeed.toFixed(1);
+  syncDifficultyOptions();
 }
 
 function updateSettings() {
@@ -768,6 +775,21 @@ function updateSettings() {
   state.settings.invertY = ui.invertY.checked;
   state.settings.movementSpeed = Number(ui.movementSpeed.value);
   syncSettingsInputs();
+}
+
+function syncDifficultyOptions() {
+  ui.difficultyOptions.forEach((button) => {
+    const active = button.dataset.difficultyOption === state.settings.difficulty;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+}
+
+function setDifficulty(presetId) {
+  if (!DIFFICULTY_PRESETS.some((preset) => preset.id === presetId)) return;
+  state.settings.difficulty = presetId;
+  syncDifficultyOptions();
+  renderTickets();
 }
 
 function markIncidentResolved(ticket) {
@@ -802,7 +824,9 @@ function runIncidents(dt) {
   let ticketStageChanged = false;
   for (const ticket of state.tickets) {
     if (isTicketDone(ticket)) continue;
-    const stage = getIncidentStage(elapsedMinutes, false);
+    const stage = getIncidentStage(elapsedMinutes, false, {
+      difficulty: state.settings.difficulty,
+    });
     const pressureMultiplier = getIncidentPressureMultiplier(stage.id);
     if (ticket.stage !== stage.id) {
       ticket.stage = stage.id;
@@ -827,7 +851,9 @@ function renderTickets() {
     const item = document.createElement("article");
     item.className = `ticket ${done ? "done" : ""}`;
     item.style.setProperty("--accent", done ? "#6f7d80" : ticket.accent);
-    const stage = getIncidentStage(getElapsedShiftMinutes(), done);
+    const stage = getIncidentStage(getElapsedShiftMinutes(), done, {
+      difficulty: state.settings.difficulty,
+    });
     const detail = done
       ? `Resolved in ${formatResponseMinutes(ticket.resolvedAtMinute)}`
       : `${stage.label} - ${ticket.completedSteps.size}/${ticket.actions.length} actions complete`;
@@ -1028,6 +1054,9 @@ ui.closeSettings.addEventListener("click", closeSettings);
 ui.mouseSensitivity.addEventListener("input", updateSettings);
 ui.invertY.addEventListener("change", updateSettings);
 ui.movementSpeed.addEventListener("input", updateSettings);
+ui.difficultyOptions.forEach((button) => {
+  button.addEventListener("click", () => setDifficulty(button.dataset.difficultyOption));
+});
 ui.restartShift.addEventListener("click", () => {
   resetShift();
 });
@@ -1062,16 +1091,24 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
       pue: state.pue,
       minutes: state.minutes,
       finished: state.finished,
+      difficulty: state.settings.difficulty,
+      ticketStages: state.tickets.map((ticket) => ticket.stage),
       openTickets: state.tickets.filter((ticket) => !isTicketDone(ticket)).length,
       journalEntries: state.journal.length,
       playerPosition: player.position.toArray(),
     }),
+    setElapsedMinutes: (minutes) => {
+      state.minutes = state.startMinutes + minutes;
+      renderTickets();
+      updateHud();
+    },
   };
 }
 
 createScene();
 renderTickets();
 renderJournal();
+syncDifficultyOptions();
 updateCameraRotation();
 animate();
 

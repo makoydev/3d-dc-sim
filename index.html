@@ -17,6 +17,14 @@
             Walk the white space, diagnose active alarms, and complete realistic
             manager/engineer response tasks before the site health drops.
           </p>
+          <div class="difficulty-group" aria-label="Difficulty preset">
+            <span>Difficulty</span>
+            <div class="segmented-control">
+              <button class="segment-button" type="button" data-difficulty-option="training">Training</button>
+              <button class="segment-button active" type="button" data-difficulty-option="standard">Standard</button>
+              <button class="segment-button" type="button" data-difficulty-option="expert">Expert</button>
+            </div>
+          </div>
           <button id="start-button" class="primary-button">Start Shift</button>
         </div>
       </section>
@@ -99,6 +107,14 @@
               <strong id="movement-speed-value">5.2</strong>
               <input id="movement-speed" type="range" min="3" max="8" step="0.1" value="5.2" />
             </label>
+            <div class="setting-row setting-segment">
+              <span>Difficulty</span>
+              <div class="segmented-control">
+                <button class="segment-button" type="button" data-difficulty-option="training">Training</button>
+                <button class="segment-button active" type="button" data-difficulty-option="standard">Standard</button>
+                <button class="segment-button" type="button" data-difficulty-option="expert">Expert</button>
+              </div>
+            </div>
             <button id="close-settings" class="secondary-button">Back to floor</button>
           </div>
         </section>

@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getIncidentPressureMultiplier, getIncidentStage } from "../src/incidents.js";
+import {
+  getDifficultyPreset,
+  getIncidentPressureMultiplier,
+  getIncidentStage,
+} from "../src/incidents.js";
 
 test("incident stages progress by elapsed shift time", () => {
   assert.equal(getIncidentStage(0).id, "watch");
@@ -18,4 +22,15 @@ test("resolved incidents do not apply pressure", () => {
 
 test("critical incidents apply stronger pressure", () => {
   assert.ok(getIncidentPressureMultiplier("critical") > getIncidentPressureMultiplier("watch"));
+});
+
+test("difficulty presets adjust escalation thresholds", () => {
+  assert.equal(getIncidentStage(5, false, { difficulty: "expert" }).id, "degraded");
+  assert.equal(getIncidentStage(5, false, { difficulty: "standard" }).id, "watch");
+  assert.equal(getIncidentStage(8, false, { difficulty: "training" }).id, "watch");
+  assert.equal(getIncidentStage(9, false, { difficulty: "training" }).id, "degraded");
+});
+
+test("unknown difficulty falls back to standard", () => {
+  assert.equal(getDifficultyPreset("unknown").id, "standard");
 });
