@@ -19,4 +19,4 @@
 - [x] Add a task journal that records which action was completed at each minute.
 - [x] Add difficulty presets that change incident escalation thresholds.
 - [x] Add audio cues for critical escalation and task completion.
-- [ ] Split the Three.js bundle with manual chunks to address the Vite chunk-size warning.
+- [x] Split the Three.js bundle with manual chunks to address the Vite chunk-size warning.
