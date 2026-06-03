@@ -13,6 +13,10 @@ test("starts a shift and opens an incident task", async ({ page }) => {
   await page.keyboard.press("KeyE");
   await expect(page.locator("#task-modal")).toBeVisible();
   await expect(page.getByRole("heading", { name: "PDU branch load imbalance" })).toBeVisible();
+
+  await page.getByRole("button", { name: /Read A-feed and B-feed branch currents/ }).click();
+  await expect(page.locator("#journal-entries time")).toHaveText(/^08:0[0-5]$/);
+  await expect(page.locator("#journal-entries")).toContainText("Read A-feed and B-feed branch currents");
 });
 
 test("restarts a completed shift without reloading the page", async ({ page }) => {
@@ -38,6 +42,7 @@ test("restarts a completed shift without reloading the page", async ({ page }) =
   expect(snapshot.sentinel).toBe("same-page");
   expect(snapshot.state.finished).toBe(false);
   expect(snapshot.state.openTickets).toBe(4);
+  expect(snapshot.state.journalEntries).toBe(0);
   expect(snapshot.state.minutes).toBeGreaterThanOrEqual(480);
   expect(snapshot.state.minutes).toBeLessThan(481.5);
   expect(snapshot.state.playerPosition).toEqual([0, 1.72, 13]);

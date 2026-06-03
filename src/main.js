@@ -64,6 +64,7 @@ const state = {
   finished: false,
   finishReason: "",
   activeTarget: null,
+  journal: [],
   settings: {
     mouseSensitivity: 2,
     invertY: false,
@@ -186,6 +187,7 @@ const ui = {
   movementSpeedValue: document.querySelector("#movement-speed-value"),
   closeSettings: document.querySelector("#close-settings"),
   tickets: document.querySelector("#tickets"),
+  journalEntries: document.querySelector("#journal-entries"),
   interaction: document.querySelector("#interaction"),
   interactionLabel: document.querySelector("#interaction-label"),
   taskModal: document.querySelector("#task-modal"),
@@ -199,6 +201,7 @@ const ui = {
   scoreValue: document.querySelector("#score-value"),
   scoreStats: document.querySelector("#score-stats"),
   scoreResponses: document.querySelector("#score-responses"),
+  scoreJournal: document.querySelector("#score-journal"),
   restartShift: document.querySelector("#restart-shift"),
 };
 
@@ -595,6 +598,53 @@ function getElapsedShiftMinutes() {
   return Math.max(0, Math.floor(state.minutes - state.startMinutes));
 }
 
+function formatClockMinutes(totalMinutes) {
+  const hours = Math.floor(totalMinutes / 60) % 24;
+  const minutes = Math.floor(totalMinutes % 60);
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function recordJournalEntry(ticket, action, actionIndex) {
+  state.journal.push({
+    id: `${ticket.id}-${actionIndex}`,
+    clock: formatClockMinutes(state.minutes),
+    minute: getElapsedShiftMinutes(),
+    ticketTitle: ticket.title,
+    action,
+  });
+  renderJournal();
+}
+
+function renderJournalList(container, { emptyText }) {
+  container.innerHTML = "";
+
+  if (state.journal.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "journal-empty";
+    empty.textContent = emptyText;
+    container.append(empty);
+    return;
+  }
+
+  for (const entry of state.journal) {
+    const item = document.createElement("article");
+    item.className = "journal-entry";
+    item.innerHTML = `
+      <time>${entry.clock}</time>
+      <div>
+        <strong>${entry.ticketTitle}</strong>
+        <p>${entry.action}</p>
+      </div>
+    `;
+    container.append(item);
+  }
+}
+
+function renderJournal() {
+  renderJournalList(ui.journalEntries, { emptyText: "No actions recorded" });
+  renderJournalList(ui.scoreJournal, { emptyText: "No actions were completed" });
+}
+
 function updateCameraRotation() {
   camera.rotation.order = "YXZ";
   camera.rotation.y = player.yaw;
@@ -663,7 +713,9 @@ function openTask(ticket) {
     button.className = `task-action ${ticket.completedSteps.has(index) ? "complete" : ""}`;
     button.innerHTML = `<span class="icon">${ticket.completedSteps.has(index) ? "✓" : index + 1}</span><span>${action}</span>`;
     button.addEventListener("click", () => {
+      const wasComplete = ticket.completedSteps.has(index);
       ticket.completedSteps.add(index);
+      if (!wasComplete) recordJournalEntry(ticket, action, index);
       if (isTicketDone(ticket)) {
         ticket.resolvedAtMinute ??= getElapsedShiftMinutes();
         state.health = Math.min(100, state.health + 8);
@@ -861,6 +913,7 @@ function finishShift(reason) {
   ui.taskModal.classList.add("hidden");
   ui.settingsModal.classList.add("hidden");
   ui.interaction.classList.add("hidden");
+  renderJournal();
   ui.scoreModal.classList.remove("hidden");
 }
 
@@ -878,6 +931,7 @@ function resetShift({ pointerLock = true } = {}) {
     finished: false,
     finishReason: "",
     activeTarget: null,
+    journal: [],
   });
 
   keys.clear();
@@ -903,6 +957,7 @@ function resetShift({ pointerLock = true } = {}) {
   ui.interaction.classList.add("hidden");
 
   renderTickets();
+  renderJournal();
   updateHud();
   if (pointerLock) canvas.requestPointerLock?.();
 }
@@ -911,9 +966,7 @@ function updateHud() {
   ui.health.textContent = `${Math.round(state.health)}%`;
   ui.temperature.textContent = `${state.temperature.toFixed(1)}C`;
   ui.pue.textContent = state.pue.toFixed(2);
-  const hours = Math.floor(state.minutes / 60) % 24;
-  const minutes = Math.floor(state.minutes % 60);
-  ui.clock.textContent = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  ui.clock.textContent = formatClockMinutes(state.minutes);
   updateCompass();
 }
 
@@ -1010,6 +1063,7 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
       minutes: state.minutes,
       finished: state.finished,
       openTickets: state.tickets.filter((ticket) => !isTicketDone(ticket)).length,
+      journalEntries: state.journal.length,
       playerPosition: player.position.toArray(),
     }),
   };
@@ -1017,6 +1071,7 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
 
 createScene();
 renderTickets();
+renderJournal();
 updateCameraRotation();
 animate();
 
