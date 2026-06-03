@@ -37,6 +37,7 @@ const raycaster = new THREE.Raycaster();
 const mouseCenter = new THREE.Vector2(0, 0);
 
 const keys = new Set();
+const initialPlayerPosition = new THREE.Vector3(0, 1.72, 13);
 const player = {
   position: camera.position,
   velocity: new THREE.Vector3(),
@@ -46,14 +47,20 @@ const player = {
   radius: 0.55,
 };
 
+function getInitialShiftState() {
+  return {
+    health: 100,
+    temperature: 22,
+    pue: 1.39,
+    minutes: 8 * 60,
+    startMinutes: 8 * 60,
+  };
+}
+
 const state = {
   started: false,
   paused: true,
-  health: 100,
-  temperature: 22,
-  pue: 1.39,
-  minutes: 8 * 60,
-  startMinutes: 8 * 60,
+  ...getInitialShiftState(),
   finished: false,
   finishReason: "",
   activeTarget: null,
@@ -524,7 +531,50 @@ function addIncidentMarkers() {
 
     world.add(group);
     interactables.push(group);
+    captureIncidentVisual(group);
   }
+}
+
+function captureIncidentVisual(target) {
+  target.traverse((child) => {
+    if (child.material) {
+      child.userData.initialMaterial = {
+        color: child.material.color?.clone(),
+        emissive: child.material.emissive?.clone(),
+        emissiveIntensity: child.material.emissiveIntensity,
+        opacity: child.material.opacity,
+        transparent: child.material.transparent,
+      };
+    }
+
+    if (child.isLight) {
+      child.userData.initialLight = {
+        color: child.color.clone(),
+        intensity: child.intensity,
+        distance: child.distance,
+      };
+    }
+  });
+}
+
+function restoreIncidentVisual(target) {
+  target.traverse((child) => {
+    const initialMaterial = child.userData.initialMaterial;
+    if (child.material && initialMaterial) {
+      if (initialMaterial.color) child.material.color.copy(initialMaterial.color);
+      if (initialMaterial.emissive) child.material.emissive.copy(initialMaterial.emissive);
+      child.material.emissiveIntensity = initialMaterial.emissiveIntensity;
+      child.material.opacity = initialMaterial.opacity;
+      child.material.transparent = initialMaterial.transparent;
+    }
+
+    const initialLight = child.userData.initialLight;
+    if (child.isLight && initialLight) {
+      child.color.copy(initialLight.color);
+      child.intensity = initialLight.intensity;
+      child.distance = initialLight.distance;
+    }
+  });
 }
 
 function createScene() {
@@ -671,7 +721,7 @@ function updateSettings() {
 function markIncidentResolved(ticket) {
   const target = interactables.find((item) => item.userData.ticket === ticket);
   if (!target) return;
-  target.children.forEach((child) => {
+  target.traverse((child) => {
     if (child.material?.color) child.material.color.set(0x71f0c6);
     if (child.material?.emissive) child.material.emissive.set(0x0b3a2b);
   });
@@ -820,6 +870,43 @@ function checkShiftEnd() {
   }
 }
 
+function resetShift({ pointerLock = true } = {}) {
+  Object.assign(state, {
+    ...getInitialShiftState(),
+    started: true,
+    paused: false,
+    finished: false,
+    finishReason: "",
+    activeTarget: null,
+  });
+
+  keys.clear();
+  player.position.copy(initialPlayerPosition);
+  player.velocity.set(0, 0, 0);
+  player.yaw = 0;
+  player.pitch = 0;
+  updateCameraRotation();
+
+  for (const ticket of state.tickets) {
+    ticket.completedSteps.clear();
+    ticket.resolvedAtMinute = null;
+    ticket.stage = "watch";
+  }
+
+  for (const target of interactables) restoreIncidentVisual(target);
+
+  ui.startScreen.classList.add("hidden");
+  ui.hud.classList.remove("hidden");
+  ui.taskModal.classList.add("hidden");
+  ui.settingsModal.classList.add("hidden");
+  ui.scoreModal.classList.add("hidden");
+  ui.interaction.classList.add("hidden");
+
+  renderTickets();
+  updateHud();
+  if (pointerLock) canvas.requestPointerLock?.();
+}
+
 function updateHud() {
   ui.health.textContent = `${Math.round(state.health)}%`;
   ui.temperature.textContent = `${state.temperature.toFixed(1)}C`;
@@ -889,7 +976,7 @@ ui.mouseSensitivity.addEventListener("input", updateSettings);
 ui.invertY.addEventListener("change", updateSettings);
 ui.movementSpeed.addEventListener("input", updateSettings);
 ui.restartShift.addEventListener("click", () => {
-  window.location.reload();
+  resetShift();
 });
 
 if (new URLSearchParams(window.location.search).get("test") === "1") {
@@ -906,6 +993,25 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
       updateActiveTarget();
       return Boolean(state.activeTarget);
     },
+    finishShift: () => {
+      for (const ticket of state.tickets) {
+        ticket.actions.forEach((_, index) => ticket.completedSteps.add(index));
+        ticket.resolvedAtMinute ??= getElapsedShiftMinutes();
+        markIncidentResolved(ticket);
+      }
+      renderTickets();
+      checkShiftEnd();
+      return state.finished;
+    },
+    snapshot: () => ({
+      health: state.health,
+      temperature: state.temperature,
+      pue: state.pue,
+      minutes: state.minutes,
+      finished: state.finished,
+      openTickets: state.tickets.filter((ticket) => !isTicketDone(ticket)).length,
+      playerPosition: player.position.toArray(),
+    }),
   };
 }
 

@@ -15,7 +15,7 @@
 
 ## Next Steps
 
-- [ ] Add a restart flow that resets state without reloading the page.
+- [x] Add a restart flow that resets state without reloading the page.
 - [ ] Add a task journal that records which action was completed at each minute.
 - [ ] Add difficulty presets that change incident escalation thresholds.
 - [ ] Add audio cues for critical escalation and task completion.
