@@ -69,6 +69,10 @@ const state = {
   finishReason: "",
   activeTarget: null,
   journal: [],
+  audio: {
+    context: null,
+    cueLog: [],
+  },
   settings: {
     difficulty: "standard",
     mouseSensitivity: 2,
@@ -595,6 +599,7 @@ function createScene() {
 function startGame({ pointerLock = true } = {}) {
   state.started = true;
   state.paused = false;
+  unlockAudio();
   ui.startScreen.classList.add("hidden");
   ui.hud.classList.remove("hidden");
   if (pointerLock) canvas.requestPointerLock?.();
@@ -649,6 +654,53 @@ function renderJournalList(container, { emptyText }) {
 function renderJournal() {
   renderJournalList(ui.journalEntries, { emptyText: "No actions recorded" });
   renderJournalList(ui.scoreJournal, { emptyText: "No actions were completed" });
+}
+
+function getAudioContext() {
+  const AudioContextConstructor = window.AudioContext ?? window.webkitAudioContext;
+  if (!AudioContextConstructor) return null;
+  state.audio.context ??= new AudioContextConstructor();
+  return state.audio.context;
+}
+
+function unlockAudio() {
+  const context = getAudioContext();
+  context?.resume?.();
+}
+
+function playCue(kind) {
+  state.audio.cueLog.push(kind);
+
+  const context = getAudioContext();
+  if (!context || context.state !== "running") return;
+
+  const patterns = {
+    "task-complete": [
+      { frequency: 523.25, duration: 0.07, type: "triangle", volume: 0.04 },
+      { frequency: 659.25, duration: 0.08, type: "triangle", volume: 0.045 },
+      { frequency: 783.99, duration: 0.12, type: "triangle", volume: 0.05 },
+    ],
+    "critical-escalation": [
+      { frequency: 196, duration: 0.13, type: "sawtooth", volume: 0.035 },
+      { frequency: 155.56, duration: 0.13, type: "sawtooth", volume: 0.04 },
+      { frequency: 196, duration: 0.18, type: "sawtooth", volume: 0.035 },
+    ],
+  };
+
+  let cursor = context.currentTime;
+  for (const step of patterns[kind] ?? []) {
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = step.type;
+    oscillator.frequency.setValueAtTime(step.frequency, cursor);
+    gain.gain.setValueAtTime(0.0001, cursor);
+    gain.gain.exponentialRampToValueAtTime(step.volume, cursor + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, cursor + step.duration);
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start(cursor);
+    oscillator.stop(cursor + step.duration + 0.01);
+    cursor += step.duration + 0.045;
+  }
 }
 
 function updateCameraRotation() {
@@ -720,14 +772,16 @@ function openTask(ticket) {
     button.innerHTML = `<span class="icon">${ticket.completedSteps.has(index) ? "✓" : index + 1}</span><span>${action}</span>`;
     button.addEventListener("click", () => {
       const wasComplete = ticket.completedSteps.has(index);
+      const wasDone = isTicketDone(ticket);
       ticket.completedSteps.add(index);
       if (!wasComplete) recordJournalEntry(ticket, action, index);
-      if (isTicketDone(ticket)) {
+      if (!wasDone && isTicketDone(ticket)) {
         ticket.resolvedAtMinute ??= getElapsedShiftMinutes();
         state.health = Math.min(100, state.health + 8);
         state.temperature = Math.max(21.4, state.temperature - (ticket.id === "hot-aisle" ? 1.2 : 0.25));
         state.pue = Math.max(1.31, state.pue - 0.035);
         markIncidentResolved(ticket);
+        playCue("task-complete");
       }
       openTask(ticket);
       renderTickets();
@@ -831,6 +885,7 @@ function runIncidents(dt) {
     if (ticket.stage !== stage.id) {
       ticket.stage = stage.id;
       ticketStageChanged = true;
+      if (stage.id === "critical") playCue("critical-escalation");
     }
     updateIncidentVisual(ticket, stage);
     state.health -= ticket.penaltyRate * pressureMultiplier * dt * 0.035;
@@ -961,6 +1016,8 @@ function resetShift({ pointerLock = true } = {}) {
   });
 
   keys.clear();
+  state.audio.cueLog = [];
+  unlockAudio();
   player.position.copy(initialPlayerPosition);
   player.velocity.set(0, 0, 0);
   player.yaw = 0;
@@ -1085,6 +1142,24 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
       checkShiftEnd();
       return state.finished;
     },
+    completeTicket: (ticketId) => {
+      const ticket = state.tickets.find((item) => item.id === ticketId);
+      if (!ticket) return false;
+      const wasDone = isTicketDone(ticket);
+      ticket.actions.forEach((action, index) => {
+        if (ticket.completedSteps.has(index)) return;
+        ticket.completedSteps.add(index);
+        recordJournalEntry(ticket, action, index);
+      });
+      if (!wasDone && isTicketDone(ticket)) {
+        ticket.resolvedAtMinute ??= getElapsedShiftMinutes();
+        markIncidentResolved(ticket);
+        playCue("task-complete");
+      }
+      renderTickets();
+      checkShiftEnd();
+      return isTicketDone(ticket);
+    },
     snapshot: () => ({
       health: state.health,
       temperature: state.temperature,
@@ -1093,12 +1168,19 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
       finished: state.finished,
       difficulty: state.settings.difficulty,
       ticketStages: state.tickets.map((ticket) => ticket.stage),
+      cueLog: [...state.audio.cueLog],
       openTickets: state.tickets.filter((ticket) => !isTicketDone(ticket)).length,
       journalEntries: state.journal.length,
       playerPosition: player.position.toArray(),
     }),
     setElapsedMinutes: (minutes) => {
       state.minutes = state.startMinutes + minutes;
+      renderTickets();
+      updateHud();
+    },
+    advanceIncidentsTo: (minutes) => {
+      state.minutes = state.startMinutes + minutes;
+      runIncidents(0);
       renderTickets();
       updateHud();
     },

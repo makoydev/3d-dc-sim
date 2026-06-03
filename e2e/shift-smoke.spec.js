@@ -17,6 +17,11 @@ test("starts a shift and opens an incident task", async ({ page }) => {
   await page.getByRole("button", { name: /Read A-feed and B-feed branch currents/ }).click();
   await expect(page.locator("#journal-entries time")).toHaveText(/^08:0[0-5]$/);
   await expect(page.locator("#journal-entries")).toContainText("Read A-feed and B-feed branch currents");
+
+  const completed = await page.evaluate(() => window.__simTest.completeTicket("pdu-load"));
+  expect(completed).toBe(true);
+  const snapshot = await page.evaluate(() => window.__simTest.snapshot());
+  expect(snapshot.cueLog).toContain("task-complete");
 });
 
 test("restarts a completed shift without reloading the page", async ({ page }) => {
@@ -58,6 +63,10 @@ test("difficulty presets change escalation timing", async ({ page }) => {
   await page.evaluate(() => window.__simTest.setElapsedMinutes(5));
 
   await expect(page.locator("#tickets")).toContainText("Degraded");
+  await page.evaluate(() => window.__simTest.advanceIncidentsTo(8));
+
+  await expect(page.locator("#tickets")).toContainText("Critical");
   const snapshot = await page.evaluate(() => window.__simTest.snapshot());
   expect(snapshot.difficulty).toBe("expert");
+  expect(snapshot.cueLog).toContain("critical-escalation");
 });
