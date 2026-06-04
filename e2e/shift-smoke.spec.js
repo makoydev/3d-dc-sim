@@ -14,8 +14,18 @@ test("starts a shift and opens an incident task", async ({ page }) => {
   await expect(page.locator("#task-modal")).toBeVisible();
   await expect(page.getByRole("heading", { name: "PDU branch load imbalance" })).toBeVisible();
 
-  await page.getByRole("button", { name: /Read A-feed and B-feed branch currents/ }).click();
-  await expect(page.locator("#journal-entries time")).toHaveText(/^08:0[0-5]$/);
+  const beforeWrongStep = await page.evaluate(() => window.__simTest.snapshot());
+  const attemptedWrongStep = await page.evaluate(() => window.__simTest.attemptStep("pdu-load", 2));
+  expect(attemptedWrongStep).toBe(true);
+  await expect(page.locator(".procedure-alert")).toContainText("Complete step 1 before step 3");
+  await expect(page.locator("#journal-entries")).toContainText("Procedure error");
+  await expect(page.locator("#journal-entries")).toContainText("attempted before");
+  const afterWrongStep = await page.evaluate(() => window.__simTest.snapshot());
+  expect(afterWrongStep.health).toBeLessThan(beforeWrongStep.health - 4);
+  expect(afterWrongStep.procedureErrors.find((ticket) => ticket.id === "pdu-load").errors).toBe(1);
+
+  const attemptedCorrectStep = await page.evaluate(() => window.__simTest.attemptStep("pdu-load", 0));
+  expect(attemptedCorrectStep).toBe(true);
   await expect(page.locator("#journal-entries")).toContainText("Read A-feed and B-feed branch currents");
 
   const completed = await page.evaluate(() => window.__simTest.completeTicket("pdu-load"));

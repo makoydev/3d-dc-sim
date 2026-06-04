@@ -367,6 +367,11 @@ h1 {
   background: rgba(255, 255, 255, 0.055);
 }
 
+.journal-entry.error {
+  border: 1px solid rgba(247, 101, 101, 0.34);
+  background: rgba(247, 101, 101, 0.1);
+}
+
 .journal-entry time {
   color: #71f0c6;
   font-size: 0.74rem;
@@ -614,6 +619,16 @@ h1 {
 .task-actions {
   display: grid;
   gap: 10px;
+}
+
+.procedure-alert {
+  padding: 10px 12px;
+  border: 1px solid rgba(247, 101, 101, 0.46);
+  border-radius: 6px;
+  background: rgba(247, 101, 101, 0.12);
+  color: #ffd6d6;
+  font-size: 0.84rem;
+  font-weight: 800;
 }
 
 .task-action {

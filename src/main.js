@@ -95,6 +95,8 @@ const state = {
         "Place absorbent pads and raise a facilities repair ticket",
       ],
       completedSteps: new Set(),
+      procedureErrors: 0,
+      lastProcedureError: null,
       resolvedAtMinute: null,
       stage: "watch",
       penaltyRate: 0.7,
@@ -117,6 +119,8 @@ const state = {
         "Check return-air temperature after stabilization",
       ],
       completedSteps: new Set(),
+      procedureErrors: 0,
+      lastProcedureError: null,
       resolvedAtMinute: null,
       stage: "watch",
       penaltyRate: 0.9,
@@ -140,6 +144,8 @@ const state = {
         "Isolate the affected battery string and notify electrical vendor",
       ],
       completedSteps: new Set(),
+      procedureErrors: 0,
+      lastProcedureError: null,
       resolvedAtMinute: null,
       stage: "watch",
       penaltyRate: 1.1,
@@ -162,6 +168,8 @@ const state = {
         "Move load to the lower-utilization branch and update the panel schedule",
       ],
       completedSteps: new Set(),
+      procedureErrors: 0,
+      lastProcedureError: null,
       resolvedAtMinute: null,
       stage: "watch",
       penaltyRate: 0.55,
@@ -615,13 +623,14 @@ function formatClockMinutes(totalMinutes) {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
-function recordJournalEntry(ticket, action, actionIndex) {
+function recordJournalEntry(ticket, action, actionIndex, { kind = "complete" } = {}) {
   state.journal.push({
     id: `${ticket.id}-${actionIndex}`,
     clock: formatClockMinutes(state.minutes),
     minute: getElapsedShiftMinutes(),
     ticketTitle: ticket.title,
     action,
+    kind,
   });
   renderJournal();
 }
@@ -639,11 +648,11 @@ function renderJournalList(container, { emptyText }) {
 
   for (const entry of state.journal) {
     const item = document.createElement("article");
-    item.className = "journal-entry";
+    item.className = `journal-entry ${entry.kind === "error" ? "error" : ""}`;
     item.innerHTML = `
       <time>${entry.clock}</time>
       <div>
-        <strong>${entry.ticketTitle}</strong>
+        <strong>${entry.kind === "error" ? "Procedure error" : entry.ticketTitle}</strong>
         <p>${entry.action}</p>
       </div>
     `;
@@ -757,6 +766,67 @@ function isTicketDone(ticket) {
   return ticket.completedSteps.size === ticket.actions.length;
 }
 
+function getNextRequiredStep(ticket) {
+  return ticket.actions.findIndex((_, index) => !ticket.completedSteps.has(index));
+}
+
+function getProcedurePenalty() {
+  const penalties = {
+    training: { health: 3, pressure: 0.15 },
+    standard: { health: 5, pressure: 0.25 },
+    expert: { health: 7, pressure: 0.35 },
+  };
+  return penalties[state.settings.difficulty] ?? penalties.standard;
+}
+
+function applyProcedureError(ticket, attemptedIndex) {
+  const expectedIndex = getNextRequiredStep(ticket);
+  const expectedAction = ticket.actions[expectedIndex];
+  const attemptedAction = ticket.actions[attemptedIndex];
+  const penalty = getProcedurePenalty();
+
+  ticket.procedureErrors += 1;
+  ticket.lastProcedureError = `Complete step ${expectedIndex + 1} before step ${attemptedIndex + 1}.`;
+  state.health = Math.max(0, state.health - penalty.health);
+  recordJournalEntry(
+    ticket,
+    `${attemptedAction} attempted before ${expectedAction}`,
+    attemptedIndex,
+    { kind: "error" },
+  );
+  playCue("critical-escalation");
+  renderTickets();
+  updateHud();
+  if (state.health <= 0) finishShift("Site health reached zero");
+}
+
+function completeTicketStep(ticket, index) {
+  const action = ticket.actions[index];
+  const wasComplete = ticket.completedSteps.has(index);
+  const wasDone = isTicketDone(ticket);
+
+  if (wasComplete || wasDone) return;
+
+  const expectedIndex = getNextRequiredStep(ticket);
+  if (index !== expectedIndex) {
+    applyProcedureError(ticket, index);
+    return;
+  }
+
+  ticket.completedSteps.add(index);
+  ticket.lastProcedureError = null;
+  recordJournalEntry(ticket, action, index);
+
+  if (isTicketDone(ticket)) {
+    ticket.resolvedAtMinute ??= getElapsedShiftMinutes();
+    state.health = Math.min(100, state.health + 8);
+    state.temperature = Math.max(21.4, state.temperature - (ticket.id === "hot-aisle" ? 1.2 : 0.25));
+    state.pue = Math.max(1.31, state.pue - 0.035);
+    markIncidentResolved(ticket);
+    playCue("task-complete");
+  }
+}
+
 function openTask(ticket) {
   if (state.finished) return;
   state.paused = true;
@@ -766,23 +836,21 @@ function openTask(ticket) {
   ui.taskDescription.textContent = ticket.description;
   ui.taskActions.innerHTML = "";
 
+  if (ticket.lastProcedureError && !isTicketDone(ticket)) {
+    const alert = document.createElement("div");
+    alert.className = "procedure-alert";
+    alert.textContent = ticket.lastProcedureError;
+    ui.taskActions.append(alert);
+  }
+
   ticket.actions.forEach((action, index) => {
     const button = document.createElement("button");
-    button.className = `task-action ${ticket.completedSteps.has(index) ? "complete" : ""}`;
+    const isComplete = ticket.completedSteps.has(index);
+    const isNext = index === getNextRequiredStep(ticket);
+    button.className = `task-action ${isComplete ? "complete" : ""} ${!isComplete && isNext ? "next" : ""}`;
     button.innerHTML = `<span class="icon">${ticket.completedSteps.has(index) ? "✓" : index + 1}</span><span>${action}</span>`;
     button.addEventListener("click", () => {
-      const wasComplete = ticket.completedSteps.has(index);
-      const wasDone = isTicketDone(ticket);
-      ticket.completedSteps.add(index);
-      if (!wasComplete) recordJournalEntry(ticket, action, index);
-      if (!wasDone && isTicketDone(ticket)) {
-        ticket.resolvedAtMinute ??= getElapsedShiftMinutes();
-        state.health = Math.min(100, state.health + 8);
-        state.temperature = Math.max(21.4, state.temperature - (ticket.id === "hot-aisle" ? 1.2 : 0.25));
-        state.pue = Math.max(1.31, state.pue - 0.035);
-        markIncidentResolved(ticket);
-        playCue("task-complete");
-      }
+      completeTicketStep(ticket, index);
       openTask(ticket);
       renderTickets();
       checkShiftEnd();
@@ -882,14 +950,15 @@ function runIncidents(dt) {
       difficulty: state.settings.difficulty,
     });
     const pressureMultiplier = getIncidentPressureMultiplier(stage.id);
+    const procedurePressure = 1 + ticket.procedureErrors * getProcedurePenalty().pressure;
     if (ticket.stage !== stage.id) {
       ticket.stage = stage.id;
       ticketStageChanged = true;
       if (stage.id === "critical") playCue("critical-escalation");
     }
     updateIncidentVisual(ticket, stage);
-    state.health -= ticket.penaltyRate * pressureMultiplier * dt * 0.035;
-    ticket.metricEffect(dt * pressureMultiplier);
+    state.health -= ticket.penaltyRate * pressureMultiplier * procedurePressure * dt * 0.035;
+    ticket.metricEffect(dt * pressureMultiplier * procedurePressure);
   }
   if (ticketStageChanged) renderTickets();
   state.health = THREE.MathUtils.clamp(state.health, 0, 100);
@@ -911,7 +980,9 @@ function renderTickets() {
     });
     const detail = done
       ? `Resolved in ${formatResponseMinutes(ticket.resolvedAtMinute)}`
-      : `${stage.label} - ${ticket.completedSteps.size}/${ticket.actions.length} actions complete`;
+      : `${stage.label} - ${ticket.completedSteps.size}/${ticket.actions.length} actions complete${
+          ticket.procedureErrors > 0 ? ` - ${ticket.procedureErrors} procedure error${ticket.procedureErrors === 1 ? "" : "s"}` : ""
+        }`;
     item.dataset.stage = stage.id;
     item.innerHTML = `
       <strong>${done ? "Resolved" : ticket.type}: ${ticket.title}</strong>
@@ -1026,6 +1097,8 @@ function resetShift({ pointerLock = true } = {}) {
 
   for (const ticket of state.tickets) {
     ticket.completedSteps.clear();
+    ticket.procedureErrors = 0;
+    ticket.lastProcedureError = null;
     ticket.resolvedAtMinute = null;
     ticket.stage = "watch";
   }
@@ -1145,20 +1218,19 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
     completeTicket: (ticketId) => {
       const ticket = state.tickets.find((item) => item.id === ticketId);
       if (!ticket) return false;
-      const wasDone = isTicketDone(ticket);
-      ticket.actions.forEach((action, index) => {
-        if (ticket.completedSteps.has(index)) return;
-        ticket.completedSteps.add(index);
-        recordJournalEntry(ticket, action, index);
-      });
-      if (!wasDone && isTicketDone(ticket)) {
-        ticket.resolvedAtMinute ??= getElapsedShiftMinutes();
-        markIncidentResolved(ticket);
-        playCue("task-complete");
-      }
+      ticket.actions.forEach((_, index) => completeTicketStep(ticket, index));
       renderTickets();
       checkShiftEnd();
       return isTicketDone(ticket);
+    },
+    attemptStep: (ticketId, index) => {
+      const ticket = state.tickets.find((item) => item.id === ticketId);
+      if (!ticket) return false;
+      completeTicketStep(ticket, index);
+      if (!ui.taskModal.classList.contains("hidden")) openTask(ticket);
+      renderTickets();
+      updateHud();
+      return true;
     },
     snapshot: () => ({
       health: state.health,
@@ -1168,6 +1240,11 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
       finished: state.finished,
       difficulty: state.settings.difficulty,
       ticketStages: state.tickets.map((ticket) => ticket.stage),
+      procedureErrors: state.tickets.map((ticket) => ({
+        id: ticket.id,
+        errors: ticket.procedureErrors,
+        lastError: ticket.lastProcedureError,
+      })),
       cueLog: [...state.audio.cueLog],
       openTickets: state.tickets.filter((ticket) => !isTicketDone(ticket)).length,
       journalEntries: state.journal.length,

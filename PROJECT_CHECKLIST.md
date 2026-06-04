@@ -12,6 +12,7 @@
 - [x] Added incident escalation stages with stronger visual and metric consequences.
 - [x] Added a settings panel for mouse sensitivity, invert Y, and movement speed.
 - [x] Added an in-browser smoke test for starting a shift and opening a task.
+- [x] Added ordered task procedures with wrong-step health and pressure penalties.
 
 ## Next Steps
 
