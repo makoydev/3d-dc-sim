@@ -18,6 +18,7 @@ test("starts a shift and opens an incident task", async ({ page }) => {
   const attemptedWrongStep = await page.evaluate(() => window.__simTest.attemptStep("pdu-load", 2));
   expect(attemptedWrongStep).toBe(true);
   await expect(page.locator(".procedure-alert")).toContainText("Complete step 1 before step 3");
+  await expect(page.locator(".task-action.error")).toContainText("Move load to the lower-utilization branch");
   await expect(page.locator("#journal-entries")).toContainText("Procedure error");
   await expect(page.locator("#journal-entries")).toContainText("attempted before");
   const afterWrongStep = await page.evaluate(() => window.__simTest.snapshot());

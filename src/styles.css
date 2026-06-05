@@ -651,6 +651,11 @@ h1 {
   background: rgba(113, 240, 198, 0.12);
 }
 
+.task-action.error {
+  border-color: rgba(247, 101, 101, 0.62);
+  background: rgba(247, 101, 101, 0.14);
+}
+
 .task-action .icon {
   display: grid;
   width: 30px;
@@ -660,6 +665,11 @@ h1 {
   background: rgba(113, 240, 198, 0.14);
   color: #71f0c6;
   font-weight: 900;
+}
+
+.task-action.error .icon {
+  background: rgba(247, 101, 101, 0.18);
+  color: #ff9a9a;
 }
 
 .task-action span:last-child {

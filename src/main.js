@@ -97,6 +97,7 @@ const state = {
       completedSteps: new Set(),
       procedureErrors: 0,
       lastProcedureError: null,
+      lastProcedureErrorStep: null,
       resolvedAtMinute: null,
       stage: "watch",
       penaltyRate: 0.7,
@@ -121,6 +122,7 @@ const state = {
       completedSteps: new Set(),
       procedureErrors: 0,
       lastProcedureError: null,
+      lastProcedureErrorStep: null,
       resolvedAtMinute: null,
       stage: "watch",
       penaltyRate: 0.9,
@@ -146,6 +148,7 @@ const state = {
       completedSteps: new Set(),
       procedureErrors: 0,
       lastProcedureError: null,
+      lastProcedureErrorStep: null,
       resolvedAtMinute: null,
       stage: "watch",
       penaltyRate: 1.1,
@@ -170,6 +173,7 @@ const state = {
       completedSteps: new Set(),
       procedureErrors: 0,
       lastProcedureError: null,
+      lastProcedureErrorStep: null,
       resolvedAtMinute: null,
       stage: "watch",
       penaltyRate: 0.55,
@@ -787,6 +791,7 @@ function applyProcedureError(ticket, attemptedIndex) {
 
   ticket.procedureErrors += 1;
   ticket.lastProcedureError = `Complete step ${expectedIndex + 1} before step ${attemptedIndex + 1}.`;
+  ticket.lastProcedureErrorStep = attemptedIndex;
   state.health = Math.max(0, state.health - penalty.health);
   recordJournalEntry(
     ticket,
@@ -815,6 +820,7 @@ function completeTicketStep(ticket, index) {
 
   ticket.completedSteps.add(index);
   ticket.lastProcedureError = null;
+  ticket.lastProcedureErrorStep = null;
   recordJournalEntry(ticket, action, index);
 
   if (isTicketDone(ticket)) {
@@ -847,8 +853,9 @@ function openTask(ticket) {
     const button = document.createElement("button");
     const isComplete = ticket.completedSteps.has(index);
     const isNext = index === getNextRequiredStep(ticket);
-    button.className = `task-action ${isComplete ? "complete" : ""} ${!isComplete && isNext ? "next" : ""}`;
-    button.innerHTML = `<span class="icon">${ticket.completedSteps.has(index) ? "✓" : index + 1}</span><span>${action}</span>`;
+    const isError = ticket.lastProcedureErrorStep === index && !isComplete;
+    button.className = `task-action ${isComplete ? "complete" : ""} ${!isComplete && isNext ? "next" : ""} ${isError ? "error" : ""}`;
+    button.innerHTML = `<span class="icon">${isComplete ? "✓" : isError ? "!" : index + 1}</span><span>${action}</span>`;
     button.addEventListener("click", () => {
       completeTicketStep(ticket, index);
       openTask(ticket);
@@ -1099,6 +1106,7 @@ function resetShift({ pointerLock = true } = {}) {
     ticket.completedSteps.clear();
     ticket.procedureErrors = 0;
     ticket.lastProcedureError = null;
+    ticket.lastProcedureErrorStep = null;
     ticket.resolvedAtMinute = null;
     ticket.stage = "watch";
   }
