@@ -790,7 +790,7 @@ function applyProcedureError(ticket, attemptedIndex) {
   const penalty = getProcedurePenalty();
 
   ticket.procedureErrors += 1;
-  ticket.lastProcedureError = `Complete step ${expectedIndex + 1} before step ${attemptedIndex + 1}.`;
+  ticket.lastProcedureError = "Procedure sequence mismatch. Reassess the response order.";
   ticket.lastProcedureErrorStep = attemptedIndex;
   state.health = Math.max(0, state.health - penalty.health);
   recordJournalEntry(
@@ -855,7 +855,7 @@ function openTask(ticket) {
     const isNext = index === getNextRequiredStep(ticket);
     const isError = ticket.lastProcedureErrorStep === index && !isComplete;
     button.className = `task-action ${isComplete ? "complete" : ""} ${!isComplete && isNext ? "next" : ""} ${isError ? "error" : ""}`;
-    button.innerHTML = `<span class="icon">${isComplete ? "✓" : isError ? "!" : index + 1}</span><span>${action}</span>`;
+    button.innerHTML = `<span class="icon" aria-hidden="true">${isComplete ? "✓" : isError ? "!" : ""}</span><span>${action}</span>`;
     button.addEventListener("click", () => {
       completeTicketStep(ticket, index);
       openTask(ticket);
