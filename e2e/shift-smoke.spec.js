@@ -14,6 +14,19 @@ test("starts a shift and opens an incident task", async ({ page }) => {
   await expect(page.locator("#task-modal")).toBeVisible();
   await expect(page.getByRole("heading", { name: "PDU branch load imbalance" })).toBeVisible();
 
+  const openSnapshot = await page.evaluate(() => window.__simTest.snapshot());
+  const pduDisplayOrder = openSnapshot.displayOrders.find((ticket) => ticket.id === "pdu-load").order;
+  expect(pduDisplayOrder).not.toEqual([0, 1, 2]);
+  const visibleActions = await page.locator("#task-actions .task-action").evaluateAll((buttons) =>
+    buttons.map((button) => button.textContent.trim()),
+  );
+  const pduActions = [
+    "Read A-feed and B-feed branch currents",
+    "Identify approved noncritical load from the change record",
+    "Move load to the lower-utilization branch and update the panel schedule",
+  ];
+  expect(visibleActions).toEqual(pduDisplayOrder.map((index) => pduActions[index]));
+
   const beforeWrongStep = await page.evaluate(() => window.__simTest.snapshot());
   const attemptedWrongStep = await page.evaluate(() => window.__simTest.attemptStep("pdu-load", 2));
   expect(attemptedWrongStep).toBe(true);

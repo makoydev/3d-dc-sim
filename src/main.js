@@ -61,6 +61,26 @@ function getInitialShiftState() {
   };
 }
 
+function getShuffledActionOrder(actionCount) {
+  const order = Array.from({ length: actionCount }, (_, index) => index);
+  for (let index = order.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [order[index], order[swapIndex]] = [order[swapIndex], order[index]];
+  }
+
+  if (order.length > 1 && order.every((value, index) => value === index)) {
+    order.push(order.shift());
+  }
+
+  return order;
+}
+
+function shuffleTicketActions() {
+  for (const ticket of state.tickets) {
+    ticket.displayOrder = getShuffledActionOrder(ticket.actions.length);
+  }
+}
+
 const state = {
   started: false,
   paused: true,
@@ -94,6 +114,7 @@ const state = {
         "Close the local isolation valve",
         "Place absorbent pads and raise a facilities repair ticket",
       ],
+      displayOrder: [],
       completedSteps: new Set(),
       procedureErrors: 0,
       lastProcedureError: null,
@@ -119,6 +140,7 @@ const state = {
         "Increase fan trim by one step",
         "Check return-air temperature after stabilization",
       ],
+      displayOrder: [],
       completedSteps: new Set(),
       procedureErrors: 0,
       lastProcedureError: null,
@@ -145,6 +167,7 @@ const state = {
         "Open the maintenance bypass checklist",
         "Isolate the affected battery string and notify electrical vendor",
       ],
+      displayOrder: [],
       completedSteps: new Set(),
       procedureErrors: 0,
       lastProcedureError: null,
@@ -170,6 +193,7 @@ const state = {
         "Identify approved noncritical load from the change record",
         "Move load to the lower-utilization branch and update the panel schedule",
       ],
+      displayOrder: [],
       completedSteps: new Set(),
       procedureErrors: 0,
       lastProcedureError: null,
@@ -849,12 +873,12 @@ function openTask(ticket) {
     ui.taskActions.append(alert);
   }
 
-  ticket.actions.forEach((action, index) => {
+  for (const index of ticket.displayOrder) {
+    const action = ticket.actions[index];
     const button = document.createElement("button");
     const isComplete = ticket.completedSteps.has(index);
-    const isNext = index === getNextRequiredStep(ticket);
     const isError = ticket.lastProcedureErrorStep === index && !isComplete;
-    button.className = `task-action ${isComplete ? "complete" : ""} ${!isComplete && isNext ? "next" : ""} ${isError ? "error" : ""}`;
+    button.className = `task-action ${isComplete ? "complete" : ""} ${isError ? "error" : ""}`;
     button.innerHTML = `<span class="icon" aria-hidden="true">${isComplete ? "✓" : isError ? "!" : ""}</span><span>${action}</span>`;
     button.addEventListener("click", () => {
       completeTicketStep(ticket, index);
@@ -863,7 +887,7 @@ function openTask(ticket) {
       checkShiftEnd();
     });
     ui.taskActions.append(button);
-  });
+  }
 
   ui.taskModal.classList.remove("hidden");
 }
@@ -1110,6 +1134,7 @@ function resetShift({ pointerLock = true } = {}) {
     ticket.resolvedAtMinute = null;
     ticket.stage = "watch";
   }
+  shuffleTicketActions();
 
   for (const target of interactables) restoreIncidentVisual(target);
 
@@ -1248,6 +1273,10 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
       finished: state.finished,
       difficulty: state.settings.difficulty,
       ticketStages: state.tickets.map((ticket) => ticket.stage),
+      displayOrders: state.tickets.map((ticket) => ({
+        id: ticket.id,
+        order: [...ticket.displayOrder],
+      })),
       procedureErrors: state.tickets.map((ticket) => ({
         id: ticket.id,
         errors: ticket.procedureErrors,
@@ -1272,6 +1301,7 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
   };
 }
 
+shuffleTicketActions();
 createScene();
 renderTickets();
 renderJournal();
