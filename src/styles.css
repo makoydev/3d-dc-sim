@@ -621,6 +621,39 @@ h1 {
   gap: 10px;
 }
 
+.diagnostic-panel {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(178, 231, 215, 0.16);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.diagnostic-panel h3 {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+.diagnostic-clues {
+  display: grid;
+  gap: 8px;
+}
+
+.diagnostic-clues p {
+  margin: 0;
+  padding-left: 10px;
+  border-left: 2px solid rgba(113, 240, 198, 0.42);
+  color: #c7d8d2;
+  font-size: 0.84rem;
+  line-height: 1.42;
+}
+
+.unlock-actions {
+  justify-self: start;
+}
+
 .procedure-alert {
   padding: 10px 12px;
   border: 1px solid rgba(247, 101, 101, 0.46);

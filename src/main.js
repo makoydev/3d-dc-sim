@@ -104,6 +104,7 @@ function chooseShiftTicketVariants() {
     ticket.currentVariantId = variant.id;
     ticket.description = variant.description;
     ticket.actions = [...variant.actions];
+    ticket.diagnosticClues = [...variant.clues];
     ticket.distractorActions = [variant.distractors[Math.floor(Math.random() * variant.distractors.length)]];
     ticket.displayChoices = getShuffledChoices(ticket);
   }
@@ -152,6 +153,11 @@ const state = {
             "Close the local isolation valve",
             "Place absorbent pads and raise a facilities repair ticket",
           ],
+          clues: [
+            "Leak sensor CRAC-2-LS reports active water at the chilled-water branch.",
+            "Loop pressure is trending down 4 psi over the last ten minutes.",
+            "Moisture is spreading toward the underfloor cable opening.",
+          ],
           distractors: ["Increase CRAC fan speed to dry the floor area"],
         },
         {
@@ -163,10 +169,17 @@ const state = {
             "Clear the blocked condensate drain line",
             "Place absorbent pads and log a facilities follow-up",
           ],
+          clues: [
+            "Chilled-water loop pressure is stable with no valve-position alarm.",
+            "Condensate tray level is high and drain flow is near zero.",
+            "Water is pooling below the drain side of CRAC-2.",
+          ],
           distractors: ["Close the chilled-water isolation valve immediately"],
         },
       ],
       currentVariantId: null,
+      inspected: false,
+      diagnosticClues: [],
       distractorActions: [],
       displayChoices: [],
       completedSteps: new Set(),
@@ -205,6 +218,11 @@ const state = {
             "Increase fan trim by one step",
             "Check return-air temperature after stabilization",
           ],
+          clues: [
+            "Cold-aisle differential pressure dropped after a containment door alarm.",
+            "Rack row B inlet probes are warm while CRAC supply temperature is normal.",
+            "Thermal camera shows bypass air at the aisle end.",
+          ],
           distractors: ["Lower the CRAC setpoint by 5C immediately"],
         },
         {
@@ -216,10 +234,17 @@ const state = {
             "Move the high-flow tile back into the cold aisle",
             "Check return-air temperature after stabilization",
           ],
+          clues: [
+            "Containment doors report closed and fan trim is already at target.",
+            "Tile map shows a high-flow tile recently moved outside row B.",
+            "Only the lower racks in row B show elevated inlet temperature.",
+          ],
           distractors: ["Open the containment door to vent the hot aisle"],
         },
       ],
       currentVariantId: null,
+      inspected: false,
+      diagnosticClues: [],
       distractorActions: [],
       displayChoices: [],
       completedSteps: new Set(),
@@ -259,6 +284,11 @@ const state = {
             "Open the maintenance bypass checklist",
             "Isolate the affected battery string and notify electrical vendor",
           ],
+          clues: [
+            "UPS string 3 impedance is above threshold on the battery monitor.",
+            "Current load is below redundant capacity but margin is narrowing.",
+            "Vendor alarm recommends string isolation after redundancy verification.",
+          ],
           distractors: ["Force a UPS self-test under live load"],
         },
         {
@@ -270,10 +300,17 @@ const state = {
             "Confirm battery string voltages are stable",
             "Place the charger in maintenance mode and notify electrical vendor",
           ],
+          clues: [
+            "Battery string voltages are even, but charger output is oscillating.",
+            "UPS load remains within redundant capacity.",
+            "Alarm history points to charger control instability, not a failed string.",
+          ],
           distractors: ["Isolate the battery string before voltage checks"],
         },
       ],
       currentVariantId: null,
+      inspected: false,
+      diagnosticClues: [],
       distractorActions: [],
       displayChoices: [],
       completedSteps: new Set(),
@@ -312,6 +349,11 @@ const state = {
             "Identify approved noncritical load from the change record",
             "Move load to the lower-utilization branch and update the panel schedule",
           ],
+          clues: [
+            "A-feed is at 82% while B-feed is at 46% on the affected branch.",
+            "Deployment change record lists one approved noncritical load.",
+            "Panel schedule matches the live rack labels.",
+          ],
           distractors: ["Move the highest-load server without checking the change record"],
         },
         {
@@ -323,10 +365,17 @@ const state = {
             "Trace the approved noncritical load at the rack",
             "Move load to the lower-utilization branch and update the panel schedule",
           ],
+          clues: [
+            "A/B branch readings disagree with the existing panel schedule.",
+            "Recent deployment note says rack labels were updated after the schedule.",
+            "Only one noncritical load is approved for movement at the rack.",
+          ],
           distractors: ["Reset the rack PDU to force a fresh load reading"],
         },
       ],
       currentVariantId: null,
+      inspected: false,
+      diagnosticClues: [],
       distractorActions: [],
       displayChoices: [],
       completedSteps: new Set(),
@@ -930,6 +979,12 @@ function isTicketDone(ticket) {
   return ticket.completedSteps.size === ticket.actions.length;
 }
 
+function readTicketDiagnostics(ticket) {
+  if (ticket.inspected) return;
+  ticket.inspected = true;
+  recordJournalEntry(ticket, "Read diagnostic telemetry", "diagnostic", { kind: "diagnostic" });
+}
+
 function getNextRequiredStep(ticket) {
   return ticket.actions.findIndex((_, index) => !ticket.completedSteps.has(index));
 }
@@ -1035,6 +1090,34 @@ function openTask(ticket) {
   ui.taskTitle.textContent = ticket.title;
   ui.taskDescription.textContent = ticket.description;
   ui.taskActions.innerHTML = "";
+
+  if (!ticket.inspected) {
+    const diagnostics = document.createElement("div");
+    diagnostics.className = "diagnostic-panel";
+    diagnostics.innerHTML = `
+      <div>
+        <p class="eyebrow">Diagnostics</p>
+        <h3>Telemetry review</h3>
+      </div>
+      <div class="diagnostic-clues">
+        ${ticket.diagnosticClues.map((clue) => `<p>${clue}</p>`).join("")}
+      </div>
+    `;
+
+    const unlock = document.createElement("button");
+    unlock.className = "primary-button unlock-actions";
+    unlock.type = "button";
+    unlock.textContent = "Read telemetry";
+    unlock.addEventListener("click", () => {
+      readTicketDiagnostics(ticket);
+      openTask(ticket);
+      renderTickets();
+    });
+
+    ui.taskActions.append(diagnostics, unlock);
+    ui.taskModal.classList.remove("hidden");
+    return;
+  }
 
   if (ticket.lastProcedureError && !isTicketDone(ticket)) {
     const alert = document.createElement("div");
@@ -1298,6 +1381,7 @@ function resetShift({ pointerLock = true } = {}) {
   updateCameraRotation();
 
   for (const ticket of state.tickets) {
+    ticket.inspected = false;
     ticket.completedSteps.clear();
     ticket.procedureErrors = 0;
     ticket.lastProcedureError = null;
@@ -1423,6 +1507,7 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
     completeTicket: (ticketId) => {
       const ticket = state.tickets.find((item) => item.id === ticketId);
       if (!ticket) return false;
+      readTicketDiagnostics(ticket);
       ticket.actions.forEach((_, index) => completeTicketStep(ticket, index));
       renderTickets();
       checkShiftEnd();
@@ -1431,6 +1516,7 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
     attemptStep: (ticketId, index) => {
       const ticket = state.tickets.find((item) => item.id === ticketId);
       if (!ticket) return false;
+      readTicketDiagnostics(ticket);
       completeTicketStep(ticket, index);
       if (!ui.taskModal.classList.contains("hidden")) openTask(ticket);
       renderTickets();
@@ -1448,6 +1534,8 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
       displayChoices: state.tickets.map((ticket) => ({
         id: ticket.id,
         variant: ticket.currentVariantId,
+        inspected: ticket.inspected,
+        clues: [...ticket.diagnosticClues],
         choices: ticket.displayChoices.map((choice) => ({ ...choice })),
         actions: [...ticket.actions],
         distractors: [...ticket.distractorActions],
@@ -1476,6 +1564,7 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
     attemptDistractor: (ticketId, index = 0) => {
       const ticket = state.tickets.find((item) => item.id === ticketId);
       if (!ticket) return false;
+      readTicketDiagnostics(ticket);
       applyDistractorError(ticket, index);
       if (!ui.taskModal.classList.contains("hidden")) openTask(ticket);
       renderTickets();

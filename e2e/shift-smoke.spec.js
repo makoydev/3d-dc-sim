@@ -13,6 +13,13 @@ test("starts a shift and opens an incident task", async ({ page }) => {
   await page.keyboard.press("KeyE");
   await expect(page.locator("#task-modal")).toBeVisible();
   await expect(page.getByRole("heading", { name: "PDU branch load imbalance" })).toBeVisible();
+  await expect(page.locator(".diagnostic-panel")).toBeVisible();
+  await expect(page.locator(".diagnostic-clues p")).toHaveCount(3);
+  await expect(page.locator("#task-actions .task-action")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Read telemetry" }).click();
+  await expect(page.locator(".diagnostic-panel")).toBeHidden();
+  await expect(page.locator("#task-actions .task-action")).toHaveCount(4);
 
   const openSnapshot = await page.evaluate(() => window.__simTest.snapshot());
   const pduDisplay = openSnapshot.displayChoices.find((ticket) => ticket.id === "pdu-load");
@@ -20,6 +27,8 @@ test("starts a shift and opens an incident task", async ({ page }) => {
     .filter((choice) => choice.kind === "procedure")
     .map((choice) => choice.index);
   expect(pduDisplay.variant).toBeTruthy();
+  expect(pduDisplay.inspected).toBe(true);
+  expect(pduDisplay.clues).toHaveLength(3);
   expect(pduDisplay.distractors).toHaveLength(1);
   expect(pduProcedureOrder).not.toEqual([0, 1, 2]);
   const visibleActions = await page.locator("#task-actions .task-action").evaluateAll((buttons) =>
