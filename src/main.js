@@ -61,23 +61,51 @@ function getInitialShiftState() {
   };
 }
 
-function getShuffledActionOrder(actionCount) {
-  const order = Array.from({ length: actionCount }, (_, index) => index);
-  for (let index = order.length - 1; index > 0; index -= 1) {
+function getShuffledChoices(ticket) {
+  const choices = [
+    ...ticket.actions.map((action, index) => ({
+      id: `procedure:${index}`,
+      kind: "procedure",
+      index,
+      label: action,
+    })),
+    ...ticket.distractorActions.map((action, index) => ({
+      id: `distractor:${index}`,
+      kind: "distractor",
+      index,
+      label: action,
+    })),
+  ];
+
+  for (let index = choices.length - 1; index > 0; index -= 1) {
     const swapIndex = Math.floor(Math.random() * (index + 1));
-    [order[index], order[swapIndex]] = [order[swapIndex], order[index]];
+    [choices[index], choices[swapIndex]] = [choices[swapIndex], choices[index]];
   }
 
-  if (order.length > 1 && order.every((value, index) => value === index)) {
-    order.push(order.shift());
+  const procedureOrder = choices
+    .filter((choice) => choice.kind === "procedure")
+    .map((choice) => choice.index);
+  if (procedureOrder.every((value, index) => value === index)) {
+    const procedurePositions = choices
+      .map((choice, index) => (choice.kind === "procedure" ? index : -1))
+      .filter((index) => index >= 0);
+    [choices[procedurePositions[0]], choices[procedurePositions[1]]] = [
+      choices[procedurePositions[1]],
+      choices[procedurePositions[0]],
+    ];
   }
 
-  return order;
+  return choices;
 }
 
-function shuffleTicketActions() {
+function chooseShiftTicketVariants() {
   for (const ticket of state.tickets) {
-    ticket.displayOrder = getShuffledActionOrder(ticket.actions.length);
+    const variant = ticket.variants[Math.floor(Math.random() * ticket.variants.length)];
+    ticket.currentVariantId = variant.id;
+    ticket.description = variant.description;
+    ticket.actions = [...variant.actions];
+    ticket.distractorActions = [variant.distractors[Math.floor(Math.random() * variant.distractors.length)]];
+    ticket.displayChoices = getShuffledChoices(ticket);
   }
 }
 
@@ -114,11 +142,38 @@ const state = {
         "Close the local isolation valve",
         "Place absorbent pads and raise a facilities repair ticket",
       ],
-      displayOrder: [],
+      variants: [
+        {
+          id: "branch-leak",
+          description:
+            "Moisture detected beside the chilled-water branch feeding CRAC-2. Follow the containment and isolation sequence before water reaches the underfloor plenum.",
+          actions: [
+            "Confirm drip source and keep water away from energized gear",
+            "Close the local isolation valve",
+            "Place absorbent pads and raise a facilities repair ticket",
+          ],
+          distractors: ["Increase CRAC fan speed to dry the floor area"],
+        },
+        {
+          id: "condensate-overflow",
+          description:
+            "Water is pooling near CRAC-2 with no pressure drop on the chilled-water loop. Determine whether the condensate drain has backed up before isolating cooling capacity.",
+          actions: [
+            "Trace the water path back to the condensate tray",
+            "Clear the blocked condensate drain line",
+            "Place absorbent pads and log a facilities follow-up",
+          ],
+          distractors: ["Close the chilled-water isolation valve immediately"],
+        },
+      ],
+      currentVariantId: null,
+      distractorActions: [],
+      displayChoices: [],
       completedSteps: new Set(),
       procedureErrors: 0,
       lastProcedureError: null,
       lastProcedureErrorStep: null,
+      lastProcedureErrorChoice: null,
       resolvedAtMinute: null,
       stage: "watch",
       penaltyRate: 0.7,
@@ -140,11 +195,38 @@ const state = {
         "Increase fan trim by one step",
         "Check return-air temperature after stabilization",
       ],
-      displayOrder: [],
+      variants: [
+        {
+          id: "containment-gap",
+          description:
+            "Rack row B is running above target because airflow is bypassing the cold aisle. Restore containment and adjust the CRAC setpoint gradually.",
+          actions: [
+            "Verify blanking panels and close the open containment door",
+            "Increase fan trim by one step",
+            "Check return-air temperature after stabilization",
+          ],
+          distractors: ["Lower the CRAC setpoint by 5C immediately"],
+        },
+        {
+          id: "failed-floor-tile",
+          description:
+            "Rack row B is hot even though containment is closed. A perforated tile swap may have reduced cold-air delivery to the affected row.",
+          actions: [
+            "Compare floor tile layout against the airflow plan",
+            "Move the high-flow tile back into the cold aisle",
+            "Check return-air temperature after stabilization",
+          ],
+          distractors: ["Open the containment door to vent the hot aisle"],
+        },
+      ],
+      currentVariantId: null,
+      distractorActions: [],
+      displayChoices: [],
       completedSteps: new Set(),
       procedureErrors: 0,
       lastProcedureError: null,
       lastProcedureErrorStep: null,
+      lastProcedureErrorChoice: null,
       resolvedAtMinute: null,
       stage: "watch",
       penaltyRate: 0.9,
@@ -167,11 +249,38 @@ const state = {
         "Open the maintenance bypass checklist",
         "Isolate the affected battery string and notify electrical vendor",
       ],
-      displayOrder: [],
+      variants: [
+        {
+          id: "high-impedance-string",
+          description:
+            "The UPS cabinet reports high impedance on one battery string. Confirm redundancy, isolate the string, and document load protection before escalation.",
+          actions: [
+            "Check N+1 capacity and current load percentage",
+            "Open the maintenance bypass checklist",
+            "Isolate the affected battery string and notify electrical vendor",
+          ],
+          distractors: ["Force a UPS self-test under live load"],
+        },
+        {
+          id: "charger-alarm",
+          description:
+            "The UPS cabinet reports charger instability while the battery strings still test within tolerance. Verify redundancy before changing charger state.",
+          actions: [
+            "Check N+1 capacity and current load percentage",
+            "Confirm battery string voltages are stable",
+            "Place the charger in maintenance mode and notify electrical vendor",
+          ],
+          distractors: ["Isolate the battery string before voltage checks"],
+        },
+      ],
+      currentVariantId: null,
+      distractorActions: [],
+      displayChoices: [],
       completedSteps: new Set(),
       procedureErrors: 0,
       lastProcedureError: null,
       lastProcedureErrorStep: null,
+      lastProcedureErrorChoice: null,
       resolvedAtMinute: null,
       stage: "watch",
       penaltyRate: 1.1,
@@ -193,11 +302,38 @@ const state = {
         "Identify approved noncritical load from the change record",
         "Move load to the lower-utilization branch and update the panel schedule",
       ],
-      displayOrder: [],
+      variants: [
+        {
+          id: "branch-imbalance",
+          description:
+            "A new deployment is drawing uneven current across A/B feeds. Verify readings and move the approved noncritical load to restore headroom.",
+          actions: [
+            "Read A-feed and B-feed branch currents",
+            "Identify approved noncritical load from the change record",
+            "Move load to the lower-utilization branch and update the panel schedule",
+          ],
+          distractors: ["Move the highest-load server without checking the change record"],
+        },
+        {
+          id: "panel-schedule-mismatch",
+          description:
+            "Branch current looks imbalanced after a deployment, but the panel schedule may be stale. Confirm documentation before moving any live load.",
+          actions: [
+            "Compare branch readings against the panel schedule",
+            "Trace the approved noncritical load at the rack",
+            "Move load to the lower-utilization branch and update the panel schedule",
+          ],
+          distractors: ["Reset the rack PDU to force a fresh load reading"],
+        },
+      ],
+      currentVariantId: null,
+      distractorActions: [],
+      displayChoices: [],
       completedSteps: new Set(),
       procedureErrors: 0,
       lastProcedureError: null,
       lastProcedureErrorStep: null,
+      lastProcedureErrorChoice: null,
       resolvedAtMinute: null,
       stage: "watch",
       penaltyRate: 0.55,
@@ -816,11 +952,35 @@ function applyProcedureError(ticket, attemptedIndex) {
   ticket.procedureErrors += 1;
   ticket.lastProcedureError = "Procedure sequence mismatch. Reassess the response order.";
   ticket.lastProcedureErrorStep = attemptedIndex;
+  ticket.lastProcedureErrorChoice = `procedure:${attemptedIndex}`;
   state.health = Math.max(0, state.health - penalty.health);
   recordJournalEntry(
     ticket,
     `${attemptedAction} attempted before ${expectedAction}`,
     attemptedIndex,
+    { kind: "error" },
+  );
+  playCue("critical-escalation");
+  renderTickets();
+  updateHud();
+  if (state.health <= 0) finishShift("Site health reached zero");
+}
+
+function applyDistractorError(ticket, distractorIndex) {
+  const expectedIndex = getNextRequiredStep(ticket);
+  const expectedAction = ticket.actions[expectedIndex];
+  const attemptedAction = ticket.distractorActions[distractorIndex];
+  const penalty = getProcedurePenalty();
+
+  ticket.procedureErrors += 1;
+  ticket.lastProcedureError = "Unsafe response choice. Reassess the diagnosis.";
+  ticket.lastProcedureErrorStep = null;
+  ticket.lastProcedureErrorChoice = `distractor:${distractorIndex}`;
+  state.health = Math.max(0, state.health - penalty.health);
+  recordJournalEntry(
+    ticket,
+    `${attemptedAction} attempted instead of diagnosing toward ${expectedAction}`,
+    distractorIndex,
     { kind: "error" },
   );
   playCue("critical-escalation");
@@ -845,6 +1005,7 @@ function completeTicketStep(ticket, index) {
   ticket.completedSteps.add(index);
   ticket.lastProcedureError = null;
   ticket.lastProcedureErrorStep = null;
+  ticket.lastProcedureErrorChoice = null;
   recordJournalEntry(ticket, action, index);
 
   if (isTicketDone(ticket)) {
@@ -855,6 +1016,15 @@ function completeTicketStep(ticket, index) {
     markIncidentResolved(ticket);
     playCue("task-complete");
   }
+}
+
+function attemptTicketChoice(ticket, choice) {
+  if (choice.kind === "distractor") {
+    applyDistractorError(ticket, choice.index);
+    return;
+  }
+
+  completeTicketStep(ticket, choice.index);
 }
 
 function openTask(ticket) {
@@ -873,15 +1043,16 @@ function openTask(ticket) {
     ui.taskActions.append(alert);
   }
 
-  for (const index of ticket.displayOrder) {
-    const action = ticket.actions[index];
+  for (const choice of ticket.displayChoices) {
     const button = document.createElement("button");
-    const isComplete = ticket.completedSteps.has(index);
-    const isError = ticket.lastProcedureErrorStep === index && !isComplete;
+    const isComplete = choice.kind === "procedure" && ticket.completedSteps.has(choice.index);
+    const procedureError = choice.kind === "procedure" && ticket.lastProcedureErrorStep === choice.index && !isComplete;
+    const choiceError = ticket.lastProcedureErrorChoice === choice.id && !isComplete;
+    const isError = procedureError || choiceError;
     button.className = `task-action ${isComplete ? "complete" : ""} ${isError ? "error" : ""}`;
-    button.innerHTML = `<span class="icon" aria-hidden="true">${isComplete ? "✓" : isError ? "!" : ""}</span><span>${action}</span>`;
+    button.innerHTML = `<span class="icon" aria-hidden="true">${isComplete ? "✓" : isError ? "!" : ""}</span><span>${choice.label}</span>`;
     button.addEventListener("click", () => {
-      completeTicketStep(ticket, index);
+      attemptTicketChoice(ticket, choice);
       openTask(ticket);
       renderTickets();
       checkShiftEnd();
@@ -1131,10 +1302,11 @@ function resetShift({ pointerLock = true } = {}) {
     ticket.procedureErrors = 0;
     ticket.lastProcedureError = null;
     ticket.lastProcedureErrorStep = null;
+    ticket.lastProcedureErrorChoice = null;
     ticket.resolvedAtMinute = null;
     ticket.stage = "watch";
   }
-  shuffleTicketActions();
+  chooseShiftTicketVariants();
 
   for (const target of interactables) restoreIncidentVisual(target);
 
@@ -1273,9 +1445,12 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
       finished: state.finished,
       difficulty: state.settings.difficulty,
       ticketStages: state.tickets.map((ticket) => ticket.stage),
-      displayOrders: state.tickets.map((ticket) => ({
+      displayChoices: state.tickets.map((ticket) => ({
         id: ticket.id,
-        order: [...ticket.displayOrder],
+        variant: ticket.currentVariantId,
+        choices: ticket.displayChoices.map((choice) => ({ ...choice })),
+        actions: [...ticket.actions],
+        distractors: [...ticket.distractorActions],
       })),
       procedureErrors: state.tickets.map((ticket) => ({
         id: ticket.id,
@@ -1298,10 +1473,19 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
       renderTickets();
       updateHud();
     },
+    attemptDistractor: (ticketId, index = 0) => {
+      const ticket = state.tickets.find((item) => item.id === ticketId);
+      if (!ticket) return false;
+      applyDistractorError(ticket, index);
+      if (!ui.taskModal.classList.contains("hidden")) openTask(ticket);
+      renderTickets();
+      updateHud();
+      return true;
+    },
   };
 }
 
-shuffleTicketActions();
+chooseShiftTicketVariants();
 createScene();
 renderTickets();
 renderJournal();

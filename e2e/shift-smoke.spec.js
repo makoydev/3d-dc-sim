@@ -15,32 +15,37 @@ test("starts a shift and opens an incident task", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "PDU branch load imbalance" })).toBeVisible();
 
   const openSnapshot = await page.evaluate(() => window.__simTest.snapshot());
-  const pduDisplayOrder = openSnapshot.displayOrders.find((ticket) => ticket.id === "pdu-load").order;
-  expect(pduDisplayOrder).not.toEqual([0, 1, 2]);
+  const pduDisplay = openSnapshot.displayChoices.find((ticket) => ticket.id === "pdu-load");
+  const pduProcedureOrder = pduDisplay.choices
+    .filter((choice) => choice.kind === "procedure")
+    .map((choice) => choice.index);
+  expect(pduDisplay.variant).toBeTruthy();
+  expect(pduDisplay.distractors).toHaveLength(1);
+  expect(pduProcedureOrder).not.toEqual([0, 1, 2]);
   const visibleActions = await page.locator("#task-actions .task-action").evaluateAll((buttons) =>
     buttons.map((button) => button.textContent.trim()),
   );
-  const pduActions = [
-    "Read A-feed and B-feed branch currents",
-    "Identify approved noncritical load from the change record",
-    "Move load to the lower-utilization branch and update the panel schedule",
-  ];
-  expect(visibleActions).toEqual(pduDisplayOrder.map((index) => pduActions[index]));
+  expect(visibleActions).toEqual(pduDisplay.choices.map((choice) => choice.label));
 
   const beforeWrongStep = await page.evaluate(() => window.__simTest.snapshot());
   const attemptedWrongStep = await page.evaluate(() => window.__simTest.attemptStep("pdu-load", 2));
   expect(attemptedWrongStep).toBe(true);
   await expect(page.locator(".procedure-alert")).toContainText("Procedure sequence mismatch");
-  await expect(page.locator(".task-action.error")).toContainText("Move load to the lower-utilization branch");
+  await expect(page.locator(".task-action.error")).toContainText(pduDisplay.actions[2]);
   await expect(page.locator("#journal-entries")).toContainText("Procedure error");
   await expect(page.locator("#journal-entries")).toContainText("attempted before");
   const afterWrongStep = await page.evaluate(() => window.__simTest.snapshot());
   expect(afterWrongStep.health).toBeLessThan(beforeWrongStep.health - 4);
   expect(afterWrongStep.procedureErrors.find((ticket) => ticket.id === "pdu-load").errors).toBe(1);
 
+  const attemptedDistractor = await page.evaluate(() => window.__simTest.attemptDistractor("pdu-load"));
+  expect(attemptedDistractor).toBe(true);
+  await expect(page.locator(".procedure-alert")).toContainText("Unsafe response choice");
+  await expect(page.locator(".task-action.error")).toContainText(pduDisplay.distractors[0]);
+
   const attemptedCorrectStep = await page.evaluate(() => window.__simTest.attemptStep("pdu-load", 0));
   expect(attemptedCorrectStep).toBe(true);
-  await expect(page.locator("#journal-entries")).toContainText("Read A-feed and B-feed branch currents");
+  await expect(page.locator("#journal-entries")).toContainText(pduDisplay.actions[0]);
 
   const completed = await page.evaluate(() => window.__simTest.completeTicket("pdu-load"));
   expect(completed).toBe(true);
