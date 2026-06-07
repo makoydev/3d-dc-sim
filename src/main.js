@@ -101,11 +101,16 @@ function getShuffledChoices(ticket) {
 function chooseShiftTicketVariants() {
   for (const ticket of state.tickets) {
     const variant = ticket.variants[Math.floor(Math.random() * ticket.variants.length)];
+    const distractorIndex = Math.floor(Math.random() * variant.distractors.length);
     ticket.currentVariantId = variant.id;
     ticket.description = variant.description;
     ticket.actions = [...variant.actions];
     ticket.diagnosticClues = [...variant.clues];
-    ticket.distractorActions = [variant.distractors[Math.floor(Math.random() * variant.distractors.length)]];
+    ticket.procedureConsequences = [...variant.procedureConsequences];
+    ticket.distractorActions = [variant.distractors[distractorIndex]];
+    ticket.distractorConsequences = [
+      variant.distractorConsequences?.[distractorIndex] ?? "Unsafe action increased operational risk.",
+    ];
     ticket.displayChoices = getShuffledChoices(ticket);
   }
 }
@@ -158,7 +163,15 @@ const state = {
             "Loop pressure is trending down 4 psi over the last ten minutes.",
             "Moisture is spreading toward the underfloor cable opening.",
           ],
+          procedureConsequences: [
+            "Containment started from an unconfirmed source. Wet floor risk increased near energized equipment.",
+            "Cooling capacity was isolated before the drip path was confirmed. Adjacent CRAC load increased.",
+            "Facilities escalation was logged before isolation was complete. Water continued moving toward the plenum.",
+          ],
           distractors: ["Increase CRAC fan speed to dry the floor area"],
+          distractorConsequences: [
+            "Fan speed increased airflow across the wet area and spread moisture toward the underfloor opening.",
+          ],
         },
         {
           id: "condensate-overflow",
@@ -174,17 +187,28 @@ const state = {
             "Condensate tray level is high and drain flow is near zero.",
             "Water is pooling below the drain side of CRAC-2.",
           ],
+          procedureConsequences: [
+            "The drain path was handled before confirming where the water originated. Spill boundaries widened.",
+            "Drain clearing started without tracing the tray overflow. Water remained near energized service panels.",
+            "Follow-up was logged before the overflow path was contained. Facilities response lost useful context.",
+          ],
           distractors: ["Close the chilled-water isolation valve immediately"],
+          distractorConsequences: [
+            "Cooling was isolated even though loop pressure was stable. Thermal headroom dropped without stopping the overflow.",
+          ],
         },
       ],
       currentVariantId: null,
       inspected: false,
       diagnosticClues: [],
+      procedureConsequences: [],
       distractorActions: [],
+      distractorConsequences: [],
       displayChoices: [],
       completedSteps: new Set(),
       procedureErrors: 0,
       lastProcedureError: null,
+      lastProcedureConsequence: null,
       lastProcedureErrorStep: null,
       lastProcedureErrorChoice: null,
       resolvedAtMinute: null,
@@ -223,7 +247,15 @@ const state = {
             "Rack row B inlet probes are warm while CRAC supply temperature is normal.",
             "Thermal camera shows bypass air at the aisle end.",
           ],
+          procedureConsequences: [
+            "Airflow tuning started before the containment gap was closed. Bypass air kept feeding the hot aisle.",
+            "Fan trim changed before the physical leakage path was corrected. Energy use rose without stabilizing inlet temperature.",
+            "Temperature was checked before stabilization steps were complete. The reading masked the active airflow fault.",
+          ],
           distractors: ["Lower the CRAC setpoint by 5C immediately"],
+          distractorConsequences: [
+            "Setpoint dropped sharply while bypass airflow remained. PUE increased and condensation risk rose.",
+          ],
         },
         {
           id: "failed-floor-tile",
@@ -239,17 +271,28 @@ const state = {
             "Tile map shows a high-flow tile recently moved outside row B.",
             "Only the lower racks in row B show elevated inlet temperature.",
           ],
+          procedureConsequences: [
+            "The tile was moved before the airflow plan was checked. Cold-air delivery became harder to verify.",
+            "Return-air validation started before the tile mismatch was corrected. The hot aisle continued drifting.",
+            "Stabilization was checked before rack-level airflow was restored. The thermal fault stayed active longer.",
+          ],
           distractors: ["Open the containment door to vent the hot aisle"],
+          distractorConsequences: [
+            "Containment was opened even though it was already holding. Bypass airflow increased across the row.",
+          ],
         },
       ],
       currentVariantId: null,
       inspected: false,
       diagnosticClues: [],
+      procedureConsequences: [],
       distractorActions: [],
+      distractorConsequences: [],
       displayChoices: [],
       completedSteps: new Set(),
       procedureErrors: 0,
       lastProcedureError: null,
+      lastProcedureConsequence: null,
       lastProcedureErrorStep: null,
       lastProcedureErrorChoice: null,
       resolvedAtMinute: null,
@@ -289,7 +332,15 @@ const state = {
             "Current load is below redundant capacity but margin is narrowing.",
             "Vendor alarm recommends string isolation after redundancy verification.",
           ],
+          procedureConsequences: [
+            "Bypass planning began before redundancy was verified. UPS risk increased under current load.",
+            "Battery isolation was prepared before the maintenance path was reviewed. Protection margin narrowed.",
+            "String isolation was attempted without capacity verification. Supported load risk increased.",
+          ],
           distractors: ["Force a UPS self-test under live load"],
+          distractorConsequences: [
+            "The self-test added stress to an impaired battery string while live load was still protected by reduced margin.",
+          ],
         },
         {
           id: "charger-alarm",
@@ -305,17 +356,28 @@ const state = {
             "UPS load remains within redundant capacity.",
             "Alarm history points to charger control instability, not a failed string.",
           ],
+          procedureConsequences: [
+            "Voltage checks began before redundant capacity was confirmed. UPS protection margin was unknown.",
+            "Charger maintenance was prepared before battery stability was confirmed. Alarm scope became ambiguous.",
+            "Maintenance mode was attempted without completed redundancy checks. Charger fault risk increased.",
+          ],
           distractors: ["Isolate the battery string before voltage checks"],
+          distractorConsequences: [
+            "A healthy string was isolated before voltage checks. Available runtime dropped during a charger fault.",
+          ],
         },
       ],
       currentVariantId: null,
       inspected: false,
       diagnosticClues: [],
+      procedureConsequences: [],
       distractorActions: [],
+      distractorConsequences: [],
       displayChoices: [],
       completedSteps: new Set(),
       procedureErrors: 0,
       lastProcedureError: null,
+      lastProcedureConsequence: null,
       lastProcedureErrorStep: null,
       lastProcedureErrorChoice: null,
       resolvedAtMinute: null,
@@ -354,7 +416,15 @@ const state = {
             "Deployment change record lists one approved noncritical load.",
             "Panel schedule matches the live rack labels.",
           ],
+          procedureConsequences: [
+            "Load selection started before live branch currents were confirmed. Capacity risk stayed hidden.",
+            "Load movement was prepared before the approved device was identified. Change-control risk increased.",
+            "Load transfer was attempted without completed verification. Branch overload risk increased.",
+          ],
           distractors: ["Move the highest-load server without checking the change record"],
+          distractorConsequences: [
+            "An unapproved workload move was attempted. Change-control risk increased and service impact became more likely.",
+          ],
         },
         {
           id: "panel-schedule-mismatch",
@@ -370,17 +440,28 @@ const state = {
             "Recent deployment note says rack labels were updated after the schedule.",
             "Only one noncritical load is approved for movement at the rack.",
           ],
+          procedureConsequences: [
+            "Rack tracing started before schedule mismatch was confirmed. The approved load could be misidentified.",
+            "Load transfer was prepared before the rack device was traced. Documentation risk increased.",
+            "Load transfer was attempted without reconciled documentation. Panel schedule accuracy degraded further.",
+          ],
           distractors: ["Reset the rack PDU to force a fresh load reading"],
+          distractorConsequences: [
+            "The PDU reset interrupted clean telemetry and added availability risk without reconciling the panel schedule.",
+          ],
         },
       ],
       currentVariantId: null,
       inspected: false,
       diagnosticClues: [],
+      procedureConsequences: [],
       distractorActions: [],
+      distractorConsequences: [],
       displayChoices: [],
       completedSteps: new Set(),
       procedureErrors: 0,
       lastProcedureError: null,
+      lastProcedureConsequence: null,
       lastProcedureErrorStep: null,
       lastProcedureErrorChoice: null,
       resolvedAtMinute: null,
@@ -999,22 +1080,18 @@ function getProcedurePenalty() {
 }
 
 function applyProcedureError(ticket, attemptedIndex) {
-  const expectedIndex = getNextRequiredStep(ticket);
-  const expectedAction = ticket.actions[expectedIndex];
   const attemptedAction = ticket.actions[attemptedIndex];
+  const consequence =
+    ticket.procedureConsequences[attemptedIndex] ?? "Procedure order error increased operational risk.";
   const penalty = getProcedurePenalty();
 
   ticket.procedureErrors += 1;
   ticket.lastProcedureError = "Procedure sequence mismatch. Reassess the response order.";
+  ticket.lastProcedureConsequence = consequence;
   ticket.lastProcedureErrorStep = attemptedIndex;
   ticket.lastProcedureErrorChoice = `procedure:${attemptedIndex}`;
   state.health = Math.max(0, state.health - penalty.health);
-  recordJournalEntry(
-    ticket,
-    `${attemptedAction} attempted before ${expectedAction}`,
-    attemptedIndex,
-    { kind: "error" },
-  );
+  recordJournalEntry(ticket, `${attemptedAction}: ${consequence}`, attemptedIndex, { kind: "error" });
   playCue("critical-escalation");
   renderTickets();
   updateHud();
@@ -1022,22 +1099,18 @@ function applyProcedureError(ticket, attemptedIndex) {
 }
 
 function applyDistractorError(ticket, distractorIndex) {
-  const expectedIndex = getNextRequiredStep(ticket);
-  const expectedAction = ticket.actions[expectedIndex];
   const attemptedAction = ticket.distractorActions[distractorIndex];
+  const consequence =
+    ticket.distractorConsequences[distractorIndex] ?? "Unsafe action increased operational risk.";
   const penalty = getProcedurePenalty();
 
   ticket.procedureErrors += 1;
   ticket.lastProcedureError = "Unsafe response choice. Reassess the diagnosis.";
+  ticket.lastProcedureConsequence = consequence;
   ticket.lastProcedureErrorStep = null;
   ticket.lastProcedureErrorChoice = `distractor:${distractorIndex}`;
   state.health = Math.max(0, state.health - penalty.health);
-  recordJournalEntry(
-    ticket,
-    `${attemptedAction} attempted instead of diagnosing toward ${expectedAction}`,
-    distractorIndex,
-    { kind: "error" },
-  );
+  recordJournalEntry(ticket, `${attemptedAction}: ${consequence}`, distractorIndex, { kind: "error" });
   playCue("critical-escalation");
   renderTickets();
   updateHud();
@@ -1059,6 +1132,7 @@ function completeTicketStep(ticket, index) {
 
   ticket.completedSteps.add(index);
   ticket.lastProcedureError = null;
+  ticket.lastProcedureConsequence = null;
   ticket.lastProcedureErrorStep = null;
   ticket.lastProcedureErrorChoice = null;
   recordJournalEntry(ticket, action, index);
@@ -1122,7 +1196,10 @@ function openTask(ticket) {
   if (ticket.lastProcedureError && !isTicketDone(ticket)) {
     const alert = document.createElement("div");
     alert.className = "procedure-alert";
-    alert.textContent = ticket.lastProcedureError;
+    alert.innerHTML = `
+      <strong>${ticket.lastProcedureError}</strong>
+      ${ticket.lastProcedureConsequence ? `<p>${ticket.lastProcedureConsequence}</p>` : ""}
+    `;
     ui.taskActions.append(alert);
   }
 
@@ -1385,6 +1462,7 @@ function resetShift({ pointerLock = true } = {}) {
     ticket.completedSteps.clear();
     ticket.procedureErrors = 0;
     ticket.lastProcedureError = null;
+    ticket.lastProcedureConsequence = null;
     ticket.lastProcedureErrorStep = null;
     ticket.lastProcedureErrorChoice = null;
     ticket.resolvedAtMinute = null;
@@ -1544,6 +1622,7 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
         id: ticket.id,
         errors: ticket.procedureErrors,
         lastError: ticket.lastProcedureError,
+        lastConsequence: ticket.lastProcedureConsequence,
       })),
       cueLog: [...state.audio.cueLog],
       openTickets: state.tickets.filter((ticket) => !isTicketDone(ticket)).length,

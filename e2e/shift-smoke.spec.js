@@ -42,15 +42,23 @@ test("starts a shift and opens an incident task", async ({ page }) => {
   await expect(page.locator(".procedure-alert")).toContainText("Procedure sequence mismatch");
   await expect(page.locator(".task-action.error")).toContainText(pduDisplay.actions[2]);
   await expect(page.locator("#journal-entries")).toContainText("Procedure error");
-  await expect(page.locator("#journal-entries")).toContainText("attempted before");
+  await expect(page.locator("#journal-entries")).not.toContainText("attempted before");
   const afterWrongStep = await page.evaluate(() => window.__simTest.snapshot());
   expect(afterWrongStep.health).toBeLessThan(beforeWrongStep.health - 4);
-  expect(afterWrongStep.procedureErrors.find((ticket) => ticket.id === "pdu-load").errors).toBe(1);
+  const pduError = afterWrongStep.procedureErrors.find((ticket) => ticket.id === "pdu-load");
+  expect(pduError.errors).toBe(1);
+  expect(pduError.lastConsequence).toBeTruthy();
+  await expect(page.locator(".procedure-alert")).toContainText(pduError.lastConsequence);
+  await expect(page.locator("#journal-entries")).toContainText(pduError.lastConsequence);
 
   const attemptedDistractor = await page.evaluate(() => window.__simTest.attemptDistractor("pdu-load"));
   expect(attemptedDistractor).toBe(true);
   await expect(page.locator(".procedure-alert")).toContainText("Unsafe response choice");
   await expect(page.locator(".task-action.error")).toContainText(pduDisplay.distractors[0]);
+  const afterDistractor = await page.evaluate(() => window.__simTest.snapshot());
+  const pduDistractorError = afterDistractor.procedureErrors.find((ticket) => ticket.id === "pdu-load");
+  expect(pduDistractorError.lastConsequence).toBeTruthy();
+  await expect(page.locator(".procedure-alert")).toContainText(pduDistractorError.lastConsequence);
 
   const attemptedCorrectStep = await page.evaluate(() => window.__simTest.attemptStep("pdu-load", 0));
   expect(attemptedCorrectStep).toBe(true);

@@ -17,6 +17,7 @@
 - [x] Shuffled task action choices so display order does not reveal procedure order.
 - [x] Added randomized incident variants with plausible distractor actions.
 - [x] Added diagnostic telemetry clues before response actions unlock.
+- [x] Added operational consequence feedback for procedure mistakes.
 
 ## Next Steps
 

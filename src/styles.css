@@ -661,7 +661,17 @@ h1 {
   background: rgba(247, 101, 101, 0.12);
   color: #ffd6d6;
   font-size: 0.84rem;
-  font-weight: 800;
+}
+
+.procedure-alert strong {
+  display: block;
+  font-weight: 900;
+}
+
+.procedure-alert p {
+  margin: 4px 0 0;
+  color: #ffc1c1;
+  line-height: 1.4;
 }
 
 .task-action {
