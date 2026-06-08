@@ -9,7 +9,7 @@ import {
 import { getMovementDirection } from "./movement.js";
 import {
   calculateAverageResponseMinutes,
-  calculateShiftScore,
+  calculateShiftGradeBreakdown,
   formatResponseMinutes,
 } from "./score.js";
 
@@ -207,6 +207,7 @@ const state = {
       displayChoices: [],
       completedSteps: new Set(),
       procedureErrors: 0,
+      unnecessaryActions: 0,
       lastProcedureError: null,
       lastProcedureConsequence: null,
       lastProcedureErrorStep: null,
@@ -291,6 +292,7 @@ const state = {
       displayChoices: [],
       completedSteps: new Set(),
       procedureErrors: 0,
+      unnecessaryActions: 0,
       lastProcedureError: null,
       lastProcedureConsequence: null,
       lastProcedureErrorStep: null,
@@ -376,6 +378,7 @@ const state = {
       displayChoices: [],
       completedSteps: new Set(),
       procedureErrors: 0,
+      unnecessaryActions: 0,
       lastProcedureError: null,
       lastProcedureConsequence: null,
       lastProcedureErrorStep: null,
@@ -460,6 +463,7 @@ const state = {
       displayChoices: [],
       completedSteps: new Set(),
       procedureErrors: 0,
+      unnecessaryActions: 0,
       lastProcedureError: null,
       lastProcedureConsequence: null,
       lastProcedureErrorStep: null,
@@ -512,6 +516,7 @@ const ui = {
   scoreTitle: document.querySelector("#score-title"),
   scoreValue: document.querySelector("#score-value"),
   scoreStats: document.querySelector("#score-stats"),
+  scoreBreakdown: document.querySelector("#score-breakdown"),
   scoreResponses: document.querySelector("#score-responses"),
   scoreJournal: document.querySelector("#score-journal"),
   restartShift: document.querySelector("#restart-shift"),
@@ -1105,6 +1110,7 @@ function applyDistractorError(ticket, distractorIndex) {
   const penalty = getProcedurePenalty();
 
   ticket.procedureErrors += 1;
+  ticket.unnecessaryActions += 1;
   ticket.lastProcedureError = "Unsafe response choice. Reassess the diagnosis.";
   ticket.lastProcedureConsequence = consequence;
   ticket.lastProcedureErrorStep = null;
@@ -1396,16 +1402,25 @@ function finishShift(reason) {
 
   const resolvedTickets = state.tickets.filter(isTicketDone).length;
   const averageResponse = calculateAverageResponseMinutes(state.tickets);
-  const score = calculateShiftScore({
+  const procedureErrorCount = state.tickets.reduce(
+    (sum, ticket) => sum + Math.max(0, ticket.procedureErrors - ticket.unnecessaryActions),
+    0,
+  );
+  const unnecessaryActionCount = state.tickets.reduce((sum, ticket) => sum + ticket.unnecessaryActions, 0);
+  const gradeBreakdown = calculateShiftGradeBreakdown({
     health: state.health,
     pue: state.pue,
     temperature: state.temperature,
     resolvedTickets,
     totalTickets: state.tickets.length,
+    procedureErrors: procedureErrorCount,
+    unnecessaryActions: unnecessaryActionCount,
+    averageResponseMinutes: averageResponse,
+    difficulty: state.settings.difficulty,
   });
 
   ui.scoreTitle.textContent = reason;
-  ui.scoreValue.textContent = String(score);
+  ui.scoreValue.textContent = String(gradeBreakdown.finalScore);
   ui.scoreStats.innerHTML = `
     <div><span>Resolved</span><strong>${resolvedTickets}/${state.tickets.length}</strong></div>
     <div><span>Elapsed</span><strong>${getElapsedShiftMinutes()} min</strong></div>
@@ -1413,6 +1428,32 @@ function finishShift(reason) {
     <div><span>Health</span><strong>${Math.round(state.health)}%</strong></div>
     <div><span>Peak temp</span><strong>${state.temperature.toFixed(1)}C</strong></div>
     <div><span>Final PUE</span><strong>${state.pue.toFixed(2)}</strong></div>
+  `;
+  ui.scoreBreakdown.innerHTML = `
+    <div>
+      <span>Base score</span>
+      <strong>${gradeBreakdown.baseScore}</strong>
+    </div>
+    <div>
+      <span>Procedure errors</span>
+      <strong>-${gradeBreakdown.procedurePenalty}</strong>
+      <small>${procedureErrorCount} sequence ${procedureErrorCount === 1 ? "mistake" : "mistakes"}</small>
+    </div>
+    <div>
+      <span>Unnecessary actions</span>
+      <strong>-${gradeBreakdown.unnecessaryActionPenalty}</strong>
+      <small>${unnecessaryActionCount} unsafe ${unnecessaryActionCount === 1 ? "choice" : "choices"}</small>
+    </div>
+    <div>
+      <span>Response time</span>
+      <strong>-${gradeBreakdown.responsePenalty}</strong>
+      <small>${formatResponseMinutes(averageResponse)} average</small>
+    </div>
+    <div>
+      <span>Difficulty</span>
+      <strong>x${gradeBreakdown.difficultyMultiplier.toFixed(2)}</strong>
+      <small>${state.settings.difficulty}</small>
+    </div>
   `;
   ui.scoreResponses.innerHTML = state.tickets
     .map(
@@ -1461,6 +1502,7 @@ function resetShift({ pointerLock = true } = {}) {
     ticket.inspected = false;
     ticket.completedSteps.clear();
     ticket.procedureErrors = 0;
+    ticket.unnecessaryActions = 0;
     ticket.lastProcedureError = null;
     ticket.lastProcedureConsequence = null;
     ticket.lastProcedureErrorStep = null;
@@ -1621,6 +1663,7 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
       procedureErrors: state.tickets.map((ticket) => ({
         id: ticket.id,
         errors: ticket.procedureErrors,
+        unnecessaryActions: ticket.unnecessaryActions,
         lastError: ticket.lastProcedureError,
         lastConsequence: ticket.lastProcedureConsequence,
       })),

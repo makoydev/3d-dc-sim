@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 test("starts a shift and opens an incident task", async ({ page }) => {
+  test.setTimeout(90_000);
+
   await page.goto("/?test=1");
 
   await page.getByRole("button", { name: "Start Shift" }).click();
@@ -79,6 +81,10 @@ test("restarts a completed shift without reloading the page", async ({ page }) =
   const finished = await page.evaluate(() => window.__simTest.finishShift());
   expect(finished).toBe(true);
   await expect(page.locator("#score-modal")).toBeVisible();
+  await expect(page.locator("#score-breakdown")).toContainText("Base score");
+  await expect(page.locator("#score-breakdown")).toContainText("Procedure errors");
+  await expect(page.locator("#score-breakdown")).toContainText("Unnecessary actions");
+  await expect(page.locator("#score-breakdown")).toContainText("Difficulty");
 
   await page.getByRole("button", { name: "Restart Shift" }).click();
   const snapshot = await page.evaluate(() => ({

@@ -552,6 +552,39 @@ h1 {
   font-size: 1.22rem;
 }
 
+.score-breakdown {
+  display: grid;
+  gap: 8px;
+  text-align: left;
+}
+
+.score-breakdown div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid rgba(178, 231, 215, 0.1);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.score-breakdown span {
+  color: #c7d8d2;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.score-breakdown strong {
+  color: #eef5f1;
+}
+
+.score-breakdown small {
+  grid-column: 1 / -1;
+  color: #90a49e;
+  font-size: 0.76rem;
+}
+
 .score-responses {
   display: grid;
   gap: 8px;

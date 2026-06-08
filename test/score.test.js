@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   calculateAverageResponseMinutes,
+  calculateShiftGradeBreakdown,
   calculateShiftScore,
   formatResponseMinutes,
 } from "../src/score.js";
@@ -15,6 +16,7 @@ test("perfect shift receives a perfect score", () => {
       temperature: 22,
       resolvedTickets: 4,
       totalTickets: 4,
+      averageResponseMinutes: 4,
     }),
     100,
   );
@@ -50,6 +52,57 @@ test("score is clamped when health is depleted", () => {
     }),
     0,
   );
+});
+
+test("grade breakdown applies mistake and response penalties", () => {
+  const cleanBreakdown = calculateShiftGradeBreakdown({
+    health: 96,
+    pue: 1.34,
+    temperature: 22.5,
+    resolvedTickets: 4,
+    totalTickets: 4,
+    averageResponseMinutes: 6,
+  });
+  const penalizedBreakdown = calculateShiftGradeBreakdown({
+    health: 96,
+    pue: 1.34,
+    temperature: 22.5,
+    resolvedTickets: 4,
+    totalTickets: 4,
+    procedureErrors: 2,
+    unnecessaryActions: 1,
+    averageResponseMinutes: 12,
+  });
+
+  assert.equal(penalizedBreakdown.procedurePenalty, 8);
+  assert.equal(penalizedBreakdown.unnecessaryActionPenalty, 3);
+  assert.equal(penalizedBreakdown.responsePenalty, 6);
+  assert.ok(penalizedBreakdown.finalScore < cleanBreakdown.finalScore);
+});
+
+test("difficulty multiplier adjusts the final score", () => {
+  const trainingBreakdown = calculateShiftGradeBreakdown({
+    health: 88,
+    pue: 1.42,
+    temperature: 25,
+    resolvedTickets: 4,
+    totalTickets: 4,
+    averageResponseMinutes: 8,
+    difficulty: "training",
+  });
+  const expertBreakdown = calculateShiftGradeBreakdown({
+    health: 88,
+    pue: 1.42,
+    temperature: 25,
+    resolvedTickets: 4,
+    totalTickets: 4,
+    averageResponseMinutes: 8,
+    difficulty: "expert",
+  });
+
+  assert.equal(trainingBreakdown.difficultyMultiplier, 0.9);
+  assert.equal(expertBreakdown.difficultyMultiplier, 1.08);
+  assert.ok(expertBreakdown.finalScore > trainingBreakdown.finalScore);
 });
 
 test("average response ignores unresolved tickets", () => {
