@@ -687,6 +687,81 @@ h1 {
   justify-self: start;
 }
 
+.debrief-panel {
+  display: grid;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid rgba(113, 240, 198, 0.2);
+  border-radius: 6px;
+  background: rgba(113, 240, 198, 0.075);
+}
+
+.debrief-panel h3 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+.debrief-panel p {
+  margin: 0;
+  color: #c7d8d2;
+  font-size: 0.84rem;
+  line-height: 1.42;
+}
+
+.debrief-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.debrief-stats div,
+.debrief-sequence,
+.debrief-consequences {
+  padding: 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.debrief-stats div {
+  display: grid;
+  gap: 3px;
+}
+
+.debrief-stats span {
+  color: #9bb3ac;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.debrief-stats strong,
+.debrief-sequence strong,
+.debrief-consequences strong {
+  color: #eef5f1;
+}
+
+.debrief-sequence,
+.debrief-consequences {
+  display: grid;
+  gap: 8px;
+}
+
+.debrief-sequence ol {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 20px;
+  color: #c7d8d2;
+  font-size: 0.84rem;
+  line-height: 1.42;
+}
+
+.debrief-consequences p {
+  padding-left: 10px;
+  border-left: 2px solid rgba(247, 101, 101, 0.5);
+}
+
 .procedure-alert {
   padding: 10px 12px;
   border: 1px solid rgba(247, 101, 101, 0.46);
@@ -796,6 +871,10 @@ h1 {
 
   .score-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .debrief-stats {
+    grid-template-columns: 1fr;
   }
 
   .controls {

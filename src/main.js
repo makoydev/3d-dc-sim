@@ -106,6 +106,7 @@ function chooseShiftTicketVariants() {
     ticket.description = variant.description;
     ticket.actions = [...variant.actions];
     ticket.diagnosticClues = [...variant.clues];
+    ticket.debriefNote = variant.debriefNote;
     ticket.procedureConsequences = [...variant.procedureConsequences];
     ticket.distractorActions = [variant.distractors[distractorIndex]];
     ticket.distractorConsequences = [
@@ -163,6 +164,8 @@ const state = {
             "Loop pressure is trending down 4 psi over the last ten minutes.",
             "Moisture is spreading toward the underfloor cable opening.",
           ],
+          debriefNote:
+            "The leak response protects energized equipment first, then limits water spread once the source is confirmed.",
           procedureConsequences: [
             "Containment started from an unconfirmed source. Wet floor risk increased near energized equipment.",
             "Cooling capacity was isolated before the drip path was confirmed. Adjacent CRAC load increased.",
@@ -187,6 +190,8 @@ const state = {
             "Condensate tray level is high and drain flow is near zero.",
             "Water is pooling below the drain side of CRAC-2.",
           ],
+          debriefNote:
+            "Stable loop pressure points away from isolation and toward condensate handling, preserving cooling capacity while stopping the spill.",
           procedureConsequences: [
             "The drain path was handled before confirming where the water originated. Spill boundaries widened.",
             "Drain clearing started without tracing the tray overflow. Water remained near energized service panels.",
@@ -201,9 +206,11 @@ const state = {
       currentVariantId: null,
       inspected: false,
       diagnosticClues: [],
+      debriefNote: "",
       procedureConsequences: [],
       distractorActions: [],
       distractorConsequences: [],
+      mistakeConsequences: [],
       displayChoices: [],
       completedSteps: new Set(),
       procedureErrors: 0,
@@ -248,6 +255,8 @@ const state = {
             "Rack row B inlet probes are warm while CRAC supply temperature is normal.",
             "Thermal camera shows bypass air at the aisle end.",
           ],
+          debriefNote:
+            "Containment fixes come before tuning because bypass air can make setpoint and fan changes look ineffective.",
           procedureConsequences: [
             "Airflow tuning started before the containment gap was closed. Bypass air kept feeding the hot aisle.",
             "Fan trim changed before the physical leakage path was corrected. Energy use rose without stabilizing inlet temperature.",
@@ -272,6 +281,8 @@ const state = {
             "Tile map shows a high-flow tile recently moved outside row B.",
             "Only the lower racks in row B show elevated inlet temperature.",
           ],
+          debriefNote:
+            "The tile layout explains localized inlet heat, so restoring the planned airflow path matters before judging temperature recovery.",
           procedureConsequences: [
             "The tile was moved before the airflow plan was checked. Cold-air delivery became harder to verify.",
             "Return-air validation started before the tile mismatch was corrected. The hot aisle continued drifting.",
@@ -286,9 +297,11 @@ const state = {
       currentVariantId: null,
       inspected: false,
       diagnosticClues: [],
+      debriefNote: "",
       procedureConsequences: [],
       distractorActions: [],
       distractorConsequences: [],
+      mistakeConsequences: [],
       displayChoices: [],
       completedSteps: new Set(),
       procedureErrors: 0,
@@ -334,6 +347,8 @@ const state = {
             "Current load is below redundant capacity but margin is narrowing.",
             "Vendor alarm recommends string isolation after redundancy verification.",
           ],
+          debriefNote:
+            "UPS work starts with capacity verification because isolation is only safe when redundant protection can carry the load.",
           procedureConsequences: [
             "Bypass planning began before redundancy was verified. UPS risk increased under current load.",
             "Battery isolation was prepared before the maintenance path was reviewed. Protection margin narrowed.",
@@ -358,6 +373,8 @@ const state = {
             "UPS load remains within redundant capacity.",
             "Alarm history points to charger control instability, not a failed string.",
           ],
+          debriefNote:
+            "Even battery readings shift the response away from string isolation and toward controlled charger maintenance.",
           procedureConsequences: [
             "Voltage checks began before redundant capacity was confirmed. UPS protection margin was unknown.",
             "Charger maintenance was prepared before battery stability was confirmed. Alarm scope became ambiguous.",
@@ -372,9 +389,11 @@ const state = {
       currentVariantId: null,
       inspected: false,
       diagnosticClues: [],
+      debriefNote: "",
       procedureConsequences: [],
       distractorActions: [],
       distractorConsequences: [],
+      mistakeConsequences: [],
       displayChoices: [],
       completedSteps: new Set(),
       procedureErrors: 0,
@@ -419,6 +438,8 @@ const state = {
             "Deployment change record lists one approved noncritical load.",
             "Panel schedule matches the live rack labels.",
           ],
+          debriefNote:
+            "Branch balancing depends on verified current and an approved noncritical load so capacity is restored without surprise service impact.",
           procedureConsequences: [
             "Load selection started before live branch currents were confirmed. Capacity risk stayed hidden.",
             "Load movement was prepared before the approved device was identified. Change-control risk increased.",
@@ -443,6 +464,8 @@ const state = {
             "Recent deployment note says rack labels were updated after the schedule.",
             "Only one noncritical load is approved for movement at the rack.",
           ],
+          debriefNote:
+            "When the schedule is stale, documentation reconciliation prevents moving the wrong live load and compounding capacity records.",
           procedureConsequences: [
             "Rack tracing started before schedule mismatch was confirmed. The approved load could be misidentified.",
             "Load transfer was prepared before the rack device was traced. Documentation risk increased.",
@@ -457,9 +480,11 @@ const state = {
       currentVariantId: null,
       inspected: false,
       diagnosticClues: [],
+      debriefNote: "",
       procedureConsequences: [],
       distractorActions: [],
       distractorConsequences: [],
+      mistakeConsequences: [],
       displayChoices: [],
       completedSteps: new Set(),
       procedureErrors: 0,
@@ -1095,6 +1120,7 @@ function applyProcedureError(ticket, attemptedIndex) {
   ticket.lastProcedureConsequence = consequence;
   ticket.lastProcedureErrorStep = attemptedIndex;
   ticket.lastProcedureErrorChoice = `procedure:${attemptedIndex}`;
+  ticket.mistakeConsequences.push(consequence);
   state.health = Math.max(0, state.health - penalty.health);
   recordJournalEntry(ticket, `${attemptedAction}: ${consequence}`, attemptedIndex, { kind: "error" });
   playCue("critical-escalation");
@@ -1115,6 +1141,7 @@ function applyDistractorError(ticket, distractorIndex) {
   ticket.lastProcedureConsequence = consequence;
   ticket.lastProcedureErrorStep = null;
   ticket.lastProcedureErrorChoice = `distractor:${distractorIndex}`;
+  ticket.mistakeConsequences.push(consequence);
   state.health = Math.max(0, state.health - penalty.health);
   recordJournalEntry(ticket, `${attemptedAction}: ${consequence}`, distractorIndex, { kind: "error" });
   playCue("critical-escalation");
@@ -1162,6 +1189,39 @@ function attemptTicketChoice(ticket, choice) {
   completeTicketStep(ticket, choice.index);
 }
 
+function renderTicketDebrief(ticket) {
+  const panel = document.createElement("div");
+  panel.className = "debrief-panel";
+  const procedureMistakes = Math.max(0, ticket.procedureErrors - ticket.unnecessaryActions);
+  panel.innerHTML = `
+    <div>
+      <p class="eyebrow">Debrief</p>
+      <h3>Resolution review</h3>
+      <p>${ticket.debriefNote}</p>
+    </div>
+    <div class="debrief-stats">
+      <div><span>Resolved</span><strong>${formatResponseMinutes(ticket.resolvedAtMinute)}</strong></div>
+      <div><span>Sequence errors</span><strong>${procedureMistakes}</strong></div>
+      <div><span>Unsafe choices</span><strong>${ticket.unnecessaryActions}</strong></div>
+    </div>
+    <div class="debrief-sequence">
+      <strong>Correct sequence</strong>
+      <ol>
+        ${ticket.actions.map((action) => `<li>${action}</li>`).join("")}
+      </ol>
+    </div>
+    <div class="debrief-consequences">
+      <strong>${ticket.mistakeConsequences.length > 0 ? "Mistake consequences" : "Mistake review"}</strong>
+      ${
+        ticket.mistakeConsequences.length > 0
+          ? ticket.mistakeConsequences.map((consequence) => `<p>${consequence}</p>`).join("")
+          : "<p>No procedure penalties were recorded for this ticket.</p>"
+      }
+    </div>
+  `;
+  ui.taskActions.append(panel);
+}
+
 function openTask(ticket) {
   if (state.finished) return;
   state.paused = true;
@@ -1195,6 +1255,12 @@ function openTask(ticket) {
     });
 
     ui.taskActions.append(diagnostics, unlock);
+    ui.taskModal.classList.remove("hidden");
+    return;
+  }
+
+  if (isTicketDone(ticket)) {
+    renderTicketDebrief(ticket);
     ui.taskModal.classList.remove("hidden");
     return;
   }
@@ -1503,6 +1569,7 @@ function resetShift({ pointerLock = true } = {}) {
     ticket.completedSteps.clear();
     ticket.procedureErrors = 0;
     ticket.unnecessaryActions = 0;
+    ticket.mistakeConsequences = [];
     ticket.lastProcedureError = null;
     ticket.lastProcedureConsequence = null;
     ticket.lastProcedureErrorStep = null;
@@ -1629,6 +1696,7 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
       if (!ticket) return false;
       readTicketDiagnostics(ticket);
       ticket.actions.forEach((_, index) => completeTicketStep(ticket, index));
+      if (!ui.taskModal.classList.contains("hidden")) openTask(ticket);
       renderTickets();
       checkShiftEnd();
       return isTicketDone(ticket);
@@ -1656,6 +1724,7 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
         variant: ticket.currentVariantId,
         inspected: ticket.inspected,
         clues: [...ticket.diagnosticClues],
+        debriefNote: ticket.debriefNote,
         choices: ticket.displayChoices.map((choice) => ({ ...choice })),
         actions: [...ticket.actions],
         distractors: [...ticket.distractorActions],
@@ -1664,6 +1733,7 @@ if (new URLSearchParams(window.location.search).get("test") === "1") {
         id: ticket.id,
         errors: ticket.procedureErrors,
         unnecessaryActions: ticket.unnecessaryActions,
+        mistakeConsequences: [...ticket.mistakeConsequences],
         lastError: ticket.lastProcedureError,
         lastConsequence: ticket.lastProcedureConsequence,
       })),

@@ -19,6 +19,7 @@
 - [x] Added diagnostic telemetry clues before response actions unlock.
 - [x] Added operational consequence feedback for procedure mistakes.
 - [x] Added a shift grading breakdown with mistake, response-time, and difficulty adjustments.
+- [x] Added post-incident debriefs with correct sequence and mistake consequences.
 
 ## Next Steps
 

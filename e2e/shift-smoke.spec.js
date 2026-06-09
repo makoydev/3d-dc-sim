@@ -68,8 +68,16 @@ test("starts a shift and opens an incident task", async ({ page }) => {
 
   const completed = await page.evaluate(() => window.__simTest.completeTicket("pdu-load"));
   expect(completed).toBe(true);
+  await expect(page.locator(".debrief-panel")).toBeVisible();
+  await expect(page.locator(".debrief-panel")).toContainText("Resolution review");
+  await expect(page.locator(".debrief-sequence li")).toHaveCount(3);
+  await expect(page.locator(".debrief-sequence")).toContainText(pduDisplay.actions[0]);
+  await expect(page.locator(".debrief-consequences")).toContainText(pduDistractorError.lastConsequence);
   const snapshot = await page.evaluate(() => window.__simTest.snapshot());
   expect(snapshot.cueLog).toContain("task-complete");
+  expect(snapshot.procedureErrors.find((ticket) => ticket.id === "pdu-load").mistakeConsequences).toContain(
+    pduDistractorError.lastConsequence,
+  );
 });
 
 test("restarts a completed shift without reloading the page", async ({ page }) => {
