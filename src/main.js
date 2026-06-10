@@ -1785,7 +1785,12 @@ renderTickets();
 renderJournal();
 syncDifficultyOptions();
 updateCameraRotation();
-animate();
+if (isTestMode) {
+  updateHud();
+  renderer.render(scene, camera);
+} else {
+  animate();
+}
 
 if (searchParams.get("autostart") === "1") {
   startGame({ pointerLock: false });
