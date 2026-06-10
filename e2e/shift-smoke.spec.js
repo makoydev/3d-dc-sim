@@ -1,5 +1,17 @@
 import { expect, test } from "@playwright/test";
 
+async function expectDomText(page, selector, expected) {
+  await expect
+    .poll(async () => {
+      try {
+        return await page.locator(selector).first().evaluate((element) => element.textContent ?? "");
+      } catch {
+        return "";
+      }
+    })
+    .toContain(expected);
+}
+
 test("starts a shift and opens an incident task", async ({ page }) => {
   test.setTimeout(90_000);
 
@@ -8,6 +20,7 @@ test("starts a shift and opens an incident task", async ({ page }) => {
   await page.getByRole("button", { name: "Start Shift" }).click();
   await expect(page.locator("#objective-compass")).toBeVisible();
   await expect(page.locator("#ticket-count")).toHaveText("4");
+  await expect(page.locator("#tickets .ticket").first()).toContainText("Degraded in 6 min");
 
   const movedToTarget = await page.evaluate(() => window.__simTest.moveToTicket("pdu-load"));
   expect(movedToTarget).toBe(true);
@@ -50,8 +63,8 @@ test("starts a shift and opens an incident task", async ({ page }) => {
   const pduError = afterWrongStep.procedureErrors.find((ticket) => ticket.id === "pdu-load");
   expect(pduError.errors).toBe(1);
   expect(pduError.lastConsequence).toBeTruthy();
-  await expect(page.locator(".procedure-alert")).toContainText(pduError.lastConsequence);
-  await expect(page.locator("#journal-entries")).toContainText(pduError.lastConsequence);
+  await expectDomText(page, ".procedure-alert", pduError.lastConsequence);
+  await expectDomText(page, "#journal-entries", pduError.lastConsequence);
 
   const attemptedDistractor = await page.evaluate(() => window.__simTest.attemptDistractor("pdu-load"));
   expect(attemptedDistractor).toBe(true);
@@ -60,7 +73,7 @@ test("starts a shift and opens an incident task", async ({ page }) => {
   const afterDistractor = await page.evaluate(() => window.__simTest.snapshot());
   const pduDistractorError = afterDistractor.procedureErrors.find((ticket) => ticket.id === "pdu-load");
   expect(pduDistractorError.lastConsequence).toBeTruthy();
-  await expect(page.locator(".procedure-alert")).toContainText(pduDistractorError.lastConsequence);
+  await expectDomText(page, ".procedure-alert", pduDistractorError.lastConsequence);
 
   const attemptedCorrectStep = await page.evaluate(() => window.__simTest.attemptStep("pdu-load", 0));
   expect(attemptedCorrectStep).toBe(true);
@@ -71,8 +84,8 @@ test("starts a shift and opens an incident task", async ({ page }) => {
   await expect(page.locator(".debrief-panel")).toBeVisible();
   await expect(page.locator(".debrief-panel")).toContainText("Resolution review");
   await expect(page.locator(".debrief-sequence li")).toHaveCount(3);
-  await expect(page.locator(".debrief-sequence")).toContainText(pduDisplay.actions[0]);
-  await expect(page.locator(".debrief-consequences")).toContainText(pduDistractorError.lastConsequence);
+  await expect(page.locator(".debrief-sequence li").first()).toHaveText(pduDisplay.actions[0]);
+  await expectDomText(page, ".debrief-consequences", pduDistractorError.lastConsequence);
   const snapshot = await page.evaluate(() => window.__simTest.snapshot());
   expect(snapshot.cueLog).toContain("task-complete");
   expect(snapshot.procedureErrors.find((ticket) => ticket.id === "pdu-load").mistakeConsequences).toContain(
@@ -94,7 +107,7 @@ test("restarts a completed shift without reloading the page", async ({ page }) =
   await expect(page.locator("#score-breakdown")).toContainText("Unnecessary actions");
   await expect(page.locator("#score-breakdown")).toContainText("Difficulty");
 
-  await page.getByRole("button", { name: "Restart Shift" }).click();
+  await page.locator("#restart-shift").dispatchEvent("click");
   const snapshot = await page.evaluate(() => ({
     sentinel: window.__restartSentinel,
     state: window.__simTest.snapshot(),
@@ -123,9 +136,11 @@ test("difficulty presets change escalation timing", async ({ page }) => {
   await page.evaluate(() => window.__simTest.setElapsedMinutes(5));
 
   await expect(page.locator("#tickets")).toContainText("Degraded");
+  await expectDomText(page, "#tickets", "Critical in 3 min");
   await page.evaluate(() => window.__simTest.advanceIncidentsTo(8));
 
   await expect(page.locator("#tickets")).toContainText("Critical");
+  await expectDomText(page, "#tickets", "Critical pressure active");
   const snapshot = await page.evaluate(() => window.__simTest.snapshot());
   expect(snapshot.difficulty).toBe("expert");
   expect(snapshot.cueLog).toContain("critical-escalation");

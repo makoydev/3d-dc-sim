@@ -28,3 +28,4 @@
 - [x] Add difficulty presets that change incident escalation thresholds.
 - [x] Add audio cues for critical escalation and task completion.
 - [x] Split the Three.js bundle with manual chunks to address the Vite chunk-size warning.
+- [x] Add escalation countdowns to active work orders.

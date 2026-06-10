@@ -25,6 +25,30 @@ export function getIncidentStage(elapsedMinutes, done = false, { difficulty = "s
   }, { ...INCIDENT_STAGES[0] });
 }
 
+export function getIncidentEscalationStatus(
+  elapsedMinutes,
+  done = false,
+  { difficulty = "standard" } = {},
+) {
+  const stage = getIncidentStage(elapsedMinutes, done, { difficulty });
+  if (done) return { stage, nextStage: null, minutesUntilNext: null };
+
+  const preset = getDifficultyPreset(difficulty);
+  const thresholds = INCIDENT_STAGES.map((item) => ({
+    ...item,
+    thresholdMinutes: Math.round(item.thresholdMinutes * preset.thresholdScale),
+  }));
+  const currentIndex = thresholds.findIndex((item) => item.id === stage.id);
+  const nextStage =
+    thresholds.slice(currentIndex + 1).find((item) => elapsedMinutes < item.thresholdMinutes) ?? null;
+
+  return {
+    stage,
+    nextStage,
+    minutesUntilNext: nextStage ? Math.max(0, Math.ceil(nextStage.thresholdMinutes - elapsedMinutes)) : null,
+  };
+}
+
 export function getIncidentPressureMultiplier(stageId) {
   return INCIDENT_STAGES.find((stage) => stage.id === stageId)?.pressureMultiplier ?? 1;
 }

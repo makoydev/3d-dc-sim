@@ -250,6 +250,19 @@ h1 {
   line-height: 1.4;
 }
 
+.ticket small {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 7px;
+  border-radius: 5px;
+  background: rgba(178, 231, 215, 0.08);
+  color: #cfe1dc;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
 .ticket.done {
   opacity: 0.54;
   border-left-color: #6f7d80;
@@ -259,8 +272,18 @@ h1 {
   background: rgba(255, 209, 102, 0.12);
 }
 
+.ticket[data-stage="degraded"] small {
+  background: rgba(255, 209, 102, 0.14);
+  color: #ffe2a3;
+}
+
 .ticket[data-stage="critical"] {
   background: rgba(247, 101, 101, 0.14);
+}
+
+.ticket[data-stage="critical"] small {
+  background: rgba(247, 101, 101, 0.18);
+  color: #ffb9b9;
 }
 
 .objective-compass {

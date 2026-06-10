@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { getObjectiveCompassItems } from "./compass.js";
 import {
   DIFFICULTY_PRESETS,
+  getIncidentEscalationStatus,
   getIncidentPressureMultiplier,
   getIncidentStage,
 } from "./incidents.js";
@@ -14,6 +15,8 @@ import {
 } from "./score.js";
 
 const canvas = document.querySelector("#world");
+const searchParams = new URLSearchParams(window.location.search);
+const isTestMode = searchParams.get("test") === "1";
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -997,12 +1000,14 @@ function getAudioContext() {
 }
 
 function unlockAudio() {
+  if (isTestMode) return;
   const context = getAudioContext();
   context?.resume?.();
 }
 
 function playCue(kind) {
   state.audio.cueLog.push(kind);
+  if (isTestMode) return;
 
   const context = getAudioContext();
   if (!context || context.state !== "running") return;
@@ -1409,18 +1414,26 @@ function renderTickets() {
     const item = document.createElement("article");
     item.className = `ticket ${done ? "done" : ""}`;
     item.style.setProperty("--accent", done ? "#6f7d80" : ticket.accent);
-    const stage = getIncidentStage(getElapsedShiftMinutes(), done, {
+    const escalation = getIncidentEscalationStatus(getElapsedShiftMinutes(), done, {
       difficulty: state.settings.difficulty,
     });
+    const stage = escalation.stage;
     const detail = done
       ? `Resolved in ${formatResponseMinutes(ticket.resolvedAtMinute)}`
       : `${stage.label} - ${ticket.completedSteps.size}/${ticket.actions.length} actions complete${
           ticket.procedureErrors > 0 ? ` - ${ticket.procedureErrors} procedure error${ticket.procedureErrors === 1 ? "" : "s"}` : ""
         }`;
+    const escalationDetail =
+      !done && escalation.nextStage
+        ? `${escalation.nextStage.label} in ${escalation.minutesUntilNext} min`
+        : !done
+          ? "Critical pressure active"
+          : "No active pressure";
     item.dataset.stage = stage.id;
     item.innerHTML = `
       <strong>${done ? "Resolved" : ticket.type}: ${ticket.title}</strong>
       <p>${detail}</p>
+      <small>${escalationDetail}</small>
     `;
     ui.tickets.append(item);
   }
@@ -1667,7 +1680,7 @@ ui.restartShift.addEventListener("click", () => {
   resetShift();
 });
 
-if (new URLSearchParams(window.location.search).get("test") === "1") {
+if (isTestMode) {
   window.__simTest = {
     moveToTicket: (ticketId) => {
       const target = interactables.find((item) => item.userData.ticket.id === ticketId);
@@ -1774,6 +1787,6 @@ syncDifficultyOptions();
 updateCameraRotation();
 animate();
 
-if (new URLSearchParams(window.location.search).get("autostart") === "1") {
+if (searchParams.get("autostart") === "1") {
   startGame({ pointerLock: false });
 }

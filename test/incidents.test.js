@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   getDifficultyPreset,
+  getIncidentEscalationStatus,
   getIncidentPressureMultiplier,
   getIncidentStage,
 } from "../src/incidents.js";
@@ -33,4 +34,30 @@ test("difficulty presets adjust escalation thresholds", () => {
 
 test("unknown difficulty falls back to standard", () => {
   assert.equal(getDifficultyPreset("unknown").id, "standard");
+});
+
+test("escalation status reports the next stage countdown", () => {
+  const standardStatus = getIncidentEscalationStatus(3, false, { difficulty: "standard" });
+
+  assert.equal(standardStatus.stage.id, "watch");
+  assert.equal(standardStatus.nextStage.id, "degraded");
+  assert.equal(standardStatus.minutesUntilNext, 3);
+
+  const expertStatus = getIncidentEscalationStatus(5, false, { difficulty: "expert" });
+
+  assert.equal(expertStatus.stage.id, "degraded");
+  assert.equal(expertStatus.nextStage.id, "critical");
+  assert.equal(expertStatus.minutesUntilNext, 3);
+});
+
+test("escalation status clears countdowns for resolved and critical incidents", () => {
+  const resolvedStatus = getIncidentEscalationStatus(30, true);
+  const criticalStatus = getIncidentEscalationStatus(12);
+
+  assert.equal(resolvedStatus.stage.id, "resolved");
+  assert.equal(resolvedStatus.nextStage, null);
+  assert.equal(resolvedStatus.minutesUntilNext, null);
+  assert.equal(criticalStatus.stage.id, "critical");
+  assert.equal(criticalStatus.nextStage, null);
+  assert.equal(criticalStatus.minutesUntilNext, null);
 });
