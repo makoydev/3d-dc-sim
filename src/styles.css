@@ -361,12 +361,95 @@ h1 {
   pointer-events: auto;
 }
 
-.journal-panel {
+.floor-map {
   position: absolute;
   top: 142px;
   left: 16px;
+  width: min(240px, calc(100vw - 32px));
+  padding: 12px;
+  border: 1px solid rgba(178, 231, 215, 0.16);
+  border-radius: 8px;
+  background: rgba(6, 13, 15, 0.78);
+  backdrop-filter: blur(14px);
+}
+
+.floor-map-points {
+  position: relative;
+  height: 150px;
+  overflow: hidden;
+  border: 1px solid rgba(178, 231, 215, 0.14);
+  border-radius: 6px;
+  background:
+    linear-gradient(rgba(178, 231, 215, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(178, 231, 215, 0.08) 1px, transparent 1px),
+    rgba(3, 8, 9, 0.72);
+  background-size: 25% 25%;
+}
+
+.floor-map-points::before,
+.floor-map-points::after {
+  position: absolute;
+  content: "";
+  background: rgba(178, 231, 215, 0.12);
+}
+
+.floor-map-points::before {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+}
+
+.floor-map-points::after {
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 1px;
+}
+
+.floor-map-incident,
+.floor-map-player {
+  position: absolute;
+  z-index: 1;
+  transform: translate(-50%, -50%);
+}
+
+.floor-map-incident {
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(238, 245, 241, 0.78);
+  border-radius: 50%;
+  background: var(--accent, #71f0c6);
+  box-shadow: 0 0 14px var(--accent, #71f0c6);
+}
+
+.floor-map-incident[data-stage="degraded"] {
+  background: #ffd166;
+  box-shadow: 0 0 16px rgba(255, 209, 102, 0.72);
+}
+
+.floor-map-incident[data-stage="critical"] {
+  width: 15px;
+  height: 15px;
+  background: #f76565;
+  box-shadow: 0 0 18px rgba(247, 101, 101, 0.78);
+}
+
+.floor-map-player {
+  width: 0;
+  height: 0;
+  border-right: 7px solid transparent;
+  border-bottom: 14px solid #eef5f1;
+  border-left: 7px solid transparent;
+  filter: drop-shadow(0 0 8px rgba(238, 245, 241, 0.7));
+}
+
+.journal-panel {
+  position: absolute;
+  top: 348px;
+  left: 16px;
   width: min(330px, calc(100vw - 32px));
-  max-height: calc(100vh - 230px);
+  max-height: calc(100vh - 436px);
   padding: 14px;
   overflow: auto;
   border: 1px solid rgba(178, 231, 215, 0.16);
@@ -889,6 +972,10 @@ h1 {
   }
 
   .journal-panel {
+    display: none;
+  }
+
+  .floor-map {
     display: none;
   }
 

@@ -1,6 +1,7 @@
 import "./styles.css";
 import * as THREE from "three";
 import { getObjectiveCompassItems } from "./compass.js";
+import { getFloorMapItems } from "./floorMap.js";
 import {
   DIFFICULTY_PRESETS,
   getIncidentEscalationStatus,
@@ -521,6 +522,7 @@ const ui = {
   clock: document.querySelector("#clock"),
   compassTrack: document.querySelector("#compass-track"),
   compassHint: document.querySelector("#compass-hint"),
+  floorMapPoints: document.querySelector("#floor-map-points"),
   settingsButton: document.querySelector("#settings-button"),
   settingsModal: document.querySelector("#settings-modal"),
   mouseSensitivity: document.querySelector("#mouse-sensitivity"),
@@ -1470,6 +1472,41 @@ function updateCompass() {
   }
 }
 
+function updateFloorMap() {
+  const items = getFloorMapItems({
+    playerPosition: player.position,
+    tickets: state.tickets.map((ticket) => ({
+      id: ticket.id,
+      title: ticket.title,
+      accent: ticket.accent,
+      location: ticket.location,
+      done: isTicketDone(ticket),
+      stage: getIncidentStage(getElapsedShiftMinutes(), isTicketDone(ticket), {
+        difficulty: state.settings.difficulty,
+      }).id,
+    })),
+  });
+
+  ui.floorMapPoints.innerHTML = "";
+
+  for (const item of items.incidents) {
+    const marker = document.createElement("div");
+    marker.className = "floor-map-incident";
+    marker.dataset.stage = item.stage;
+    marker.style.setProperty("--accent", item.accent);
+    marker.style.left = `${item.left}%`;
+    marker.style.top = `${item.top}%`;
+    marker.title = item.title;
+    ui.floorMapPoints.append(marker);
+  }
+
+  const playerMarker = document.createElement("div");
+  playerMarker.className = "floor-map-player";
+  playerMarker.style.left = `${items.player.left}%`;
+  playerMarker.style.top = `${items.player.top}%`;
+  ui.floorMapPoints.append(playerMarker);
+}
+
 function finishShift(reason) {
   if (state.finished) return;
 
@@ -1613,6 +1650,7 @@ function updateHud() {
   ui.pue.textContent = state.pue.toFixed(2);
   ui.clock.textContent = formatClockMinutes(state.minutes);
   updateCompass();
+  updateFloorMap();
 }
 
 function animate() {
@@ -1753,6 +1791,17 @@ if (isTestMode) {
       cueLog: [...state.audio.cueLog],
       openTickets: state.tickets.filter((ticket) => !isTicketDone(ticket)).length,
       journalEntries: state.journal.length,
+      floorMap: getFloorMapItems({
+        playerPosition: player.position,
+        tickets: state.tickets.map((ticket) => ({
+          id: ticket.id,
+          title: ticket.title,
+          accent: ticket.accent,
+          location: ticket.location,
+          done: isTicketDone(ticket),
+          stage: ticket.stage,
+        })),
+      }),
       playerPosition: player.position.toArray(),
     }),
     setElapsedMinutes: (minutes) => {

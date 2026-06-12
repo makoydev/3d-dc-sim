@@ -19,6 +19,8 @@ test("starts a shift and opens an incident task", async ({ page }) => {
 
   await page.getByRole("button", { name: "Start Shift" }).click();
   await expect(page.locator("#objective-compass")).toBeVisible();
+  await expect(page.locator("#floor-map")).toBeVisible();
+  await expect(page.locator("#floor-map-points > div")).toHaveCount(5);
   await expect(page.locator("#ticket-count")).toHaveText("4");
   await expect(page.locator("#tickets .ticket").first()).toContainText("Degraded in 6 min");
 
@@ -88,6 +90,7 @@ test("starts a shift and opens an incident task", async ({ page }) => {
   await expectDomText(page, ".debrief-consequences", pduDistractorError.lastConsequence);
   const snapshot = await page.evaluate(() => window.__simTest.snapshot());
   expect(snapshot.cueLog).toContain("task-complete");
+  expect(snapshot.floorMap.incidents).toHaveLength(3);
   expect(snapshot.procedureErrors.find((ticket) => ticket.id === "pdu-load").mistakeConsequences).toContain(
     pduDistractorError.lastConsequence,
   );
@@ -116,11 +119,13 @@ test("restarts a completed shift without reloading the page", async ({ page }) =
   await expect(page.locator("#score-modal")).toBeHidden();
   await expect(page.locator("#ticket-count")).toHaveText("4");
   await expect(page.locator("#health")).toHaveText("100%");
+  await expect(page.locator("#floor-map-points > div")).toHaveCount(5);
 
   expect(snapshot.sentinel).toBe("same-page");
   expect(snapshot.state.finished).toBe(false);
   expect(snapshot.state.openTickets).toBe(4);
   expect(snapshot.state.journalEntries).toBe(0);
+  expect(snapshot.state.floorMap.incidents).toHaveLength(4);
   expect(snapshot.state.minutes).toBeGreaterThanOrEqual(480);
   expect(snapshot.state.minutes).toBeLessThan(481.5);
   expect(snapshot.state.playerPosition).toEqual([0, 1.72, 13]);
