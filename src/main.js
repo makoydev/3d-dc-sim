@@ -524,6 +524,9 @@ const ui = {
   compassTrack: document.querySelector("#compass-track"),
   compassHint: document.querySelector("#compass-hint"),
   floorMapPoints: document.querySelector("#floor-map-points"),
+  pauseModal: document.querySelector("#pause-modal"),
+  resumeShift: document.querySelector("#resume-shift"),
+  restartPausedShift: document.querySelector("#restart-paused-shift"),
   settingsButton: document.querySelector("#settings-button"),
   settingsModal: document.querySelector("#settings-modal"),
   mouseSensitivity: document.querySelector("#mouse-sensitivity"),
@@ -1325,6 +1328,22 @@ function closeSettings() {
   if (state.started) canvas.requestPointerLock?.();
 }
 
+function openPauseMenu() {
+  if (!state.started || state.finished) return;
+  if (!ui.taskModal.classList.contains("hidden") || !ui.settingsModal.classList.contains("hidden")) return;
+  state.paused = true;
+  document.exitPointerLock?.();
+  ui.interaction.classList.add("hidden");
+  ui.pauseModal.classList.remove("hidden");
+}
+
+function closePauseMenu() {
+  if (state.finished) return;
+  state.paused = false;
+  ui.pauseModal.classList.add("hidden");
+  if (state.started) canvas.requestPointerLock?.();
+}
+
 function syncSettingsInputs() {
   ui.mouseSensitivity.value = String(state.settings.mouseSensitivity);
   ui.mouseSensitivityValue.textContent = state.settings.mouseSensitivity.toFixed(1);
@@ -1619,6 +1638,7 @@ function finishShift(reason) {
     .join("");
   ui.taskModal.classList.add("hidden");
   ui.settingsModal.classList.add("hidden");
+  ui.pauseModal.classList.add("hidden");
   ui.interaction.classList.add("hidden");
   renderJournal();
   ui.scoreModal.classList.remove("hidden");
@@ -1671,6 +1691,7 @@ function resetShift({ pointerLock = true } = {}) {
   ui.hud.classList.remove("hidden");
   ui.taskModal.classList.add("hidden");
   ui.settingsModal.classList.add("hidden");
+  ui.pauseModal.classList.add("hidden");
   ui.scoreModal.classList.add("hidden");
   ui.interaction.classList.add("hidden");
 
@@ -1708,18 +1729,30 @@ window.addEventListener("resize", () => {
 
 window.addEventListener("keydown", (event) => {
   keys.add(event.code);
+  if (event.code === "Escape" && !ui.pauseModal.classList.contains("hidden")) {
+    closePauseMenu();
+    return;
+  }
   if (event.code === "Escape" && !ui.settingsModal.classList.contains("hidden")) {
     closeSettings();
+    return;
+  }
+  if (event.code === "Escape" && !ui.taskModal.classList.contains("hidden")) {
+    closeTask();
+    return;
+  }
+  if (event.code === "Escape" && state.started && !state.finished) {
+    openPauseMenu();
     return;
   }
   if (event.code === "KeyE" && state.activeTarget && !ui.taskModal.classList.contains("hidden")) {
     return;
   }
+  if (event.code === "KeyE" && !ui.pauseModal.classList.contains("hidden")) {
+    return;
+  }
   if (event.code === "KeyE" && state.activeTarget) {
     openTask(state.activeTarget.userData.ticket);
-  }
-  if (event.code === "Escape" && !ui.taskModal.classList.contains("hidden")) {
-    closeTask();
   }
 });
 
@@ -1742,6 +1775,8 @@ canvas.addEventListener("click", () => {
 
 ui.startButton.addEventListener("click", startGame);
 ui.closeTask.addEventListener("click", closeTask);
+ui.resumeShift.addEventListener("click", closePauseMenu);
+ui.restartPausedShift.addEventListener("click", () => resetShift());
 ui.settingsButton.addEventListener("click", openSettings);
 ui.closeSettings.addEventListener("click", closeSettings);
 ui.mouseSensitivity.addEventListener("input", updateSettings);
@@ -1803,6 +1838,7 @@ if (isTestMode) {
       temperature: state.temperature,
       pue: state.pue,
       minutes: state.minutes,
+      paused: state.paused,
       finished: state.finished,
       difficulty: state.settings.difficulty,
       ticketStages: state.tickets.map((ticket) => ticket.stage),

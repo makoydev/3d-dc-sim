@@ -134,6 +134,31 @@ test("restarts a completed shift without reloading the page", async ({ page }) =
   expect(snapshot.state.playerPosition).toEqual([0, 1.72, 13]);
 });
 
+test("pauses, resumes, and restarts from the floor", async ({ page }) => {
+  await page.goto("/?test=1&autostart=1");
+
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#pause-modal")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Shift paused" })).toBeVisible();
+  expect((await page.evaluate(() => window.__simTest.snapshot())).paused).toBe(true);
+
+  await page.getByRole("button", { name: "Resume Shift" }).click();
+  await expect(page.locator("#pause-modal")).toBeHidden();
+  expect((await page.evaluate(() => window.__simTest.snapshot())).paused).toBe(false);
+
+  await page.evaluate(() => window.__simTest.setElapsedMinutes(7));
+  await page.keyboard.press("Escape");
+  await page.locator("#restart-paused-shift").dispatchEvent("click");
+
+  const snapshot = await page.evaluate(() => window.__simTest.snapshot());
+  await expect(page.locator("#pause-modal")).toBeHidden();
+  await expect(page.locator("#ticket-count")).toHaveText("4");
+  expect(snapshot.paused).toBe(false);
+  expect(snapshot.openTickets).toBe(4);
+  expect(snapshot.minutes).toBeGreaterThanOrEqual(480);
+  expect(snapshot.minutes).toBeLessThan(481.5);
+});
+
 test("difficulty presets change escalation timing", async ({ page }) => {
   await page.goto("/?test=1");
 

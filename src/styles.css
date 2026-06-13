@@ -602,7 +602,8 @@ h1 {
 
 .task-modal,
 .score-modal,
-.settings-modal {
+.settings-modal,
+.pause-modal {
   position: absolute;
   inset: 0;
   display: grid;
@@ -613,7 +614,8 @@ h1 {
 
 .modal-panel,
 .score-panel,
-.settings-panel {
+.settings-panel,
+.pause-panel {
   display: grid;
   gap: 18px;
   width: min(620px, calc(100vw - 32px));
@@ -628,7 +630,8 @@ h1 {
 
 .modal-panel h2,
 .score-panel h2,
-.settings-panel h2 {
+.settings-panel h2,
+.pause-panel h2 {
   margin-bottom: 8px;
   font-size: 1.55rem;
   letter-spacing: 0;
@@ -752,6 +755,16 @@ h1 {
 
 .settings-panel {
   width: min(440px, calc(100vw - 32px));
+}
+
+.pause-panel {
+  width: min(420px, calc(100vw - 32px));
+}
+
+.pause-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .setting-row,
@@ -1016,6 +1029,10 @@ h1 {
   }
 
   .debrief-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .pause-actions {
     grid-template-columns: 1fr;
   }
 
