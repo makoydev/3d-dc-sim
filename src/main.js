@@ -9,6 +9,7 @@ import {
   getIncidentStage,
 } from "./incidents.js";
 import { getMovementDirection } from "./movement.js";
+import { getIncidentPriorityItems, getRecommendedIncidentId } from "./priority.js";
 import {
   calculateAverageResponseMinutes,
   calculateShiftGradeBreakdown,
@@ -1411,10 +1412,39 @@ function runIncidents(dt) {
 
 function renderTickets() {
   ui.tickets.innerHTML = "";
-  for (const ticket of state.tickets) {
+  const ticketPriorityContext = state.tickets.map((ticket) => {
     const done = isTicketDone(ticket);
+    return {
+      id: ticket.id,
+      location: ticket.location,
+      done,
+      procedureErrors: ticket.procedureErrors,
+      stage: getIncidentStage(getElapsedShiftMinutes(), done, {
+        difficulty: state.settings.difficulty,
+      }).id,
+    };
+  });
+  const priorityItems = getIncidentPriorityItems({
+    playerPosition: player.position,
+    tickets: ticketPriorityContext,
+  });
+  const priorityById = new Map(priorityItems.map((item, index) => [item.id, { ...item, rank: index + 1 }]));
+  const recommendedTicketId = getRecommendedIncidentId({
+    playerPosition: player.position,
+    tickets: ticketPriorityContext,
+  });
+  const sortedTickets = [...state.tickets].sort((a, b) => {
+    const aPriority = priorityById.get(a.id);
+    const bPriority = priorityById.get(b.id);
+    return aPriority.rank - bPriority.rank;
+  });
+
+  for (const ticket of sortedTickets) {
+    const done = isTicketDone(ticket);
+    const priority = priorityById.get(ticket.id);
+    const isRecommended = ticket.id === recommendedTicketId;
     const item = document.createElement("article");
-    item.className = `ticket ${done ? "done" : ""}`;
+    item.className = `ticket ${done ? "done" : ""} ${isRecommended ? "recommended" : ""}`;
     item.style.setProperty("--accent", done ? "#6f7d80" : ticket.accent);
     const escalation = getIncidentEscalationStatus(getElapsedShiftMinutes(), done, {
       difficulty: state.settings.difficulty,
@@ -1433,9 +1463,15 @@ function renderTickets() {
           : "No active pressure";
     item.dataset.stage = stage.id;
     item.innerHTML = `
-      <strong>${done ? "Resolved" : ticket.type}: ${ticket.title}</strong>
+      <div class="ticket-title">
+        <strong>${done ? "Resolved" : ticket.type}: ${ticket.title}</strong>
+        ${isRecommended ? '<span class="priority-badge">Next</span>' : ""}
+      </div>
       <p>${detail}</p>
-      <small>${escalationDetail}</small>
+      <div class="ticket-meta">
+        <small>${escalationDetail}</small>
+        ${!done ? `<small>Priority ${priority.rank} - ${Math.round(priority.distance)}m</small>` : ""}
+      </div>
     `;
     ui.tickets.append(item);
   }
@@ -1791,6 +1827,16 @@ if (isTestMode) {
       cueLog: [...state.audio.cueLog],
       openTickets: state.tickets.filter((ticket) => !isTicketDone(ticket)).length,
       journalEntries: state.journal.length,
+      recommendedTicketId: getRecommendedIncidentId({
+        playerPosition: player.position,
+        tickets: state.tickets.map((ticket) => ({
+          id: ticket.id,
+          location: ticket.location,
+          done: isTicketDone(ticket),
+          procedureErrors: ticket.procedureErrors,
+          stage: ticket.stage,
+        })),
+      }),
       floorMap: getFloorMapItems({
         playerPosition: player.position,
         tickets: state.tickets.map((ticket) => ({

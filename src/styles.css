@@ -237,10 +237,36 @@ h1 {
   background: rgba(255, 255, 255, 0.06);
 }
 
+.ticket.recommended {
+  border-color: rgba(113, 240, 198, 0.74);
+  background: rgba(113, 240, 198, 0.105);
+  box-shadow: inset 0 0 0 1px rgba(113, 240, 198, 0.18);
+}
+
+.ticket-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
 .ticket strong {
   display: block;
-  margin-bottom: 6px;
+  min-width: 0;
   font-size: 0.92rem;
+}
+
+.priority-badge {
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: #71f0c6;
+  color: #06231b;
+  font-size: 0.64rem;
+  font-weight: 950;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .ticket p {
@@ -250,9 +276,15 @@ h1 {
   line-height: 1.4;
 }
 
+.ticket-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
 .ticket small {
   display: inline-block;
-  margin-top: 8px;
   padding: 4px 7px;
   border-radius: 5px;
   background: rgba(178, 231, 215, 0.08);

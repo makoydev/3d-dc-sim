@@ -23,6 +23,8 @@ test("starts a shift and opens an incident task", async ({ page }) => {
   await expect(page.locator("#floor-map-points > div")).toHaveCount(5);
   await expect(page.locator("#ticket-count")).toHaveText("4");
   await expect(page.locator("#tickets .ticket").first()).toContainText("Degraded in 6 min");
+  await expect(page.locator("#tickets .ticket").first()).toContainText("Next");
+  await expect(page.locator("#tickets .ticket").first()).toContainText("Priority 1");
 
   const movedToTarget = await page.evaluate(() => window.__simTest.moveToTicket("pdu-load"));
   expect(movedToTarget).toBe(true);
@@ -39,6 +41,7 @@ test("starts a shift and opens an incident task", async ({ page }) => {
   await expect(page.locator("#task-actions .task-action")).toHaveCount(4);
 
   const openSnapshot = await page.evaluate(() => window.__simTest.snapshot());
+  expect(openSnapshot.recommendedTicketId).toBeTruthy();
   const pduDisplay = openSnapshot.displayChoices.find((ticket) => ticket.id === "pdu-load");
   const pduProcedureOrder = pduDisplay.choices
     .filter((choice) => choice.kind === "procedure")

@@ -30,3 +30,4 @@
 - [x] Split the Three.js bundle with manual chunks to address the Vite chunk-size warning.
 - [x] Add escalation countdowns to active work orders.
 - [x] Add a floor map with player and incident positions.
+- [x] Add priority ranking and recommended-next badges to work orders.
