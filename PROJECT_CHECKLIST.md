@@ -32,3 +32,4 @@
 - [x] Add a floor map with player and incident positions.
 - [x] Add priority ranking and recommended-next badges to work orders.
 - [x] Add a pause menu with resume and restart actions.
+- [x] Add persistent shift records with attempts and best score.

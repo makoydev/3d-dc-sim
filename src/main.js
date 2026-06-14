@@ -10,6 +10,7 @@ import {
 } from "./incidents.js";
 import { getMovementDirection } from "./movement.js";
 import { getIncidentPriorityItems, getRecommendedIncidentId } from "./priority.js";
+import { readShiftRecord, recordShiftResult } from "./records.js";
 import {
   calculateAverageResponseMinutes,
   calculateShiftGradeBreakdown,
@@ -515,6 +516,7 @@ const animated = [];
 const ui = {
   startScreen: document.querySelector("#start-screen"),
   startButton: document.querySelector("#start-button"),
+  startRecord: document.querySelector("#start-record"),
   hud: document.querySelector("#hud"),
   health: document.querySelector("#health"),
   temperature: document.querySelector("#temperature"),
@@ -551,6 +553,7 @@ const ui = {
   scoreValue: document.querySelector("#score-value"),
   scoreStats: document.querySelector("#score-stats"),
   scoreBreakdown: document.querySelector("#score-breakdown"),
+  scoreRecords: document.querySelector("#score-records"),
   scoreResponses: document.querySelector("#score-responses"),
   scoreJournal: document.querySelector("#score-journal"),
   restartShift: document.querySelector("#restart-shift"),
@@ -996,6 +999,29 @@ function renderJournalList(container, { emptyText }) {
 function renderJournal() {
   renderJournalList(ui.journalEntries, { emptyText: "No actions recorded" });
   renderJournalList(ui.scoreJournal, { emptyText: "No actions were completed" });
+}
+
+function formatRecordTickets(resolvedTickets, totalTickets) {
+  if (!Number.isFinite(resolvedTickets) || !Number.isFinite(totalTickets)) return "None";
+  return `${resolvedTickets}/${totalTickets}`;
+}
+
+function renderShiftRecord(container, record = readShiftRecord()) {
+  container.innerHTML = `
+    <div>
+      <span>Attempts</span>
+      <strong>${record.attempts}</strong>
+    </div>
+    <div>
+      <span>Best score</span>
+      <strong>${record.bestScore ?? "None"}</strong>
+      <small>${record.bestDifficulty ?? "No completed shifts"}</small>
+    </div>
+    <div>
+      <span>Best resolved</span>
+      <strong>${formatRecordTickets(record.bestResolvedTickets, record.bestTotalTickets)}</strong>
+    </div>
+  `;
 }
 
 function getAudioContext() {
@@ -1589,9 +1615,17 @@ function finishShift(reason) {
     averageResponseMinutes: averageResponse,
     difficulty: state.settings.difficulty,
   });
+  const shiftRecord = recordShiftResult({
+    score: gradeBreakdown.finalScore,
+    difficulty: state.settings.difficulty,
+    resolvedTickets,
+    totalTickets: state.tickets.length,
+  });
 
   ui.scoreTitle.textContent = reason;
   ui.scoreValue.textContent = String(gradeBreakdown.finalScore);
+  renderShiftRecord(ui.startRecord, shiftRecord);
+  renderShiftRecord(ui.scoreRecords, shiftRecord);
   ui.scoreStats.innerHTML = `
     <div><span>Resolved</span><strong>${resolvedTickets}/${state.tickets.length}</strong></div>
     <div><span>Elapsed</span><strong>${getElapsedShiftMinutes()} min</strong></div>
@@ -1841,6 +1875,7 @@ if (isTestMode) {
       paused: state.paused,
       finished: state.finished,
       difficulty: state.settings.difficulty,
+      shiftRecord: readShiftRecord(),
       ticketStages: state.tickets.map((ticket) => ticket.stage),
       displayChoices: state.tickets.map((ticket) => ({
         id: ticket.id,
@@ -1914,6 +1949,7 @@ chooseShiftTicketVariants();
 createScene();
 renderTickets();
 renderJournal();
+renderShiftRecord(ui.startRecord);
 syncDifficultyOptions();
 updateCameraRotation();
 if (isTestMode) {

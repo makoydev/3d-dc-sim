@@ -17,6 +17,8 @@ test("starts a shift and opens an incident task", async ({ page }) => {
 
   await page.goto("/?test=1");
 
+  await expect(page.locator("#start-record")).toContainText("Attempts");
+  await expect(page.locator("#start-record")).toContainText("None");
   await page.getByRole("button", { name: "Start Shift" }).click();
   await expect(page.locator("#objective-compass")).toBeVisible();
   await expect(page.locator("#floor-map")).toBeVisible();
@@ -112,6 +114,8 @@ test("restarts a completed shift without reloading the page", async ({ page }) =
   await expect(page.locator("#score-breakdown")).toContainText("Procedure errors");
   await expect(page.locator("#score-breakdown")).toContainText("Unnecessary actions");
   await expect(page.locator("#score-breakdown")).toContainText("Difficulty");
+  await expect(page.locator("#score-records")).toContainText("Attempts");
+  await expect(page.locator("#score-records")).toContainText("Best score");
 
   await page.locator("#restart-shift").dispatchEvent("click");
   const snapshot = await page.evaluate(() => ({
@@ -128,6 +132,8 @@ test("restarts a completed shift without reloading the page", async ({ page }) =
   expect(snapshot.state.finished).toBe(false);
   expect(snapshot.state.openTickets).toBe(4);
   expect(snapshot.state.journalEntries).toBe(0);
+  expect(snapshot.state.shiftRecord.attempts).toBe(1);
+  expect(snapshot.state.shiftRecord.bestScore).toBeGreaterThan(0);
   expect(snapshot.state.floorMap.incidents).toHaveLength(4);
   expect(snapshot.state.minutes).toBeGreaterThanOrEqual(480);
   expect(snapshot.state.minutes).toBeLessThan(481.5);

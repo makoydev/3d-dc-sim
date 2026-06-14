@@ -89,6 +89,46 @@ h1 {
   line-height: 1.6;
 }
 
+.record-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  width: min(520px, 100%);
+  margin: 18px 0 4px;
+}
+
+.record-summary div {
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid rgba(178, 231, 215, 0.14);
+  border-radius: 6px;
+  background: rgba(6, 13, 15, 0.64);
+}
+
+.record-summary span,
+.record-summary small {
+  display: block;
+  overflow: hidden;
+  color: #9bb3ac;
+  font-size: 0.68rem;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.record-summary strong {
+  display: block;
+  margin-top: 4px;
+  color: #eef5f1;
+  font-size: 1.12rem;
+}
+
+.record-summary small {
+  margin-top: 3px;
+  text-transform: none;
+}
+
 .primary-button,
 .secondary-button {
   min-height: 44px;
@@ -671,6 +711,11 @@ h1 {
   line-height: 1;
 }
 
+.score-records {
+  width: 100%;
+  margin: 0;
+}
+
 .score-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1026,6 +1071,10 @@ h1 {
 
   .score-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .record-summary {
+    grid-template-columns: 1fr;
   }
 
   .debrief-stats {
