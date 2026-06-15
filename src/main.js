@@ -10,7 +10,7 @@ import {
 } from "./incidents.js";
 import { getMovementDirection } from "./movement.js";
 import { getIncidentPriorityItems, getRecommendedIncidentId } from "./priority.js";
-import { readShiftRecord, recordShiftResult } from "./records.js";
+import { clearShiftRecord, readShiftRecord, recordShiftResult } from "./records.js";
 import {
   calculateAverageResponseMinutes,
   calculateShiftGradeBreakdown,
@@ -517,6 +517,7 @@ const ui = {
   startScreen: document.querySelector("#start-screen"),
   startButton: document.querySelector("#start-button"),
   startRecord: document.querySelector("#start-record"),
+  clearStartRecord: document.querySelector("#clear-start-record"),
   hud: document.querySelector("#hud"),
   health: document.querySelector("#health"),
   temperature: document.querySelector("#temperature"),
@@ -554,6 +555,7 @@ const ui = {
   scoreStats: document.querySelector("#score-stats"),
   scoreBreakdown: document.querySelector("#score-breakdown"),
   scoreRecords: document.querySelector("#score-records"),
+  clearScoreRecord: document.querySelector("#clear-score-record"),
   scoreResponses: document.querySelector("#score-responses"),
   scoreJournal: document.querySelector("#score-journal"),
   restartShift: document.querySelector("#restart-shift"),
@@ -1022,6 +1024,12 @@ function renderShiftRecord(container, record = readShiftRecord()) {
       <strong>${formatRecordTickets(record.bestResolvedTickets, record.bestTotalTickets)}</strong>
     </div>
   `;
+}
+
+function clearRecordDisplay() {
+  const record = clearShiftRecord();
+  renderShiftRecord(ui.startRecord, record);
+  renderShiftRecord(ui.scoreRecords, record);
 }
 
 function getAudioContext() {
@@ -1808,6 +1816,8 @@ canvas.addEventListener("click", () => {
 });
 
 ui.startButton.addEventListener("click", startGame);
+ui.clearStartRecord.addEventListener("click", clearRecordDisplay);
+ui.clearScoreRecord.addEventListener("click", clearRecordDisplay);
 ui.closeTask.addEventListener("click", closeTask);
 ui.resumeShift.addEventListener("click", closePauseMenu);
 ui.restartPausedShift.addEventListener("click", () => resetShift());

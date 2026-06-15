@@ -129,6 +129,20 @@ h1 {
   text-transform: none;
 }
 
+.record-clear-button {
+  justify-self: start;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(178, 231, 215, 0.18);
+  border-radius: 6px;
+  background: rgba(178, 231, 215, 0.08);
+  color: #c7d8d2;
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
 .primary-button,
 .secondary-button {
   min-height: 44px;
@@ -714,6 +728,10 @@ h1 {
 .score-records {
   width: 100%;
   margin: 0;
+}
+
+.score-records + .record-clear-button {
+  justify-self: center;
 }
 
 .score-stats {

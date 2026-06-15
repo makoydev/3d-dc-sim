@@ -116,6 +116,10 @@ test("restarts a completed shift without reloading the page", async ({ page }) =
   await expect(page.locator("#score-breakdown")).toContainText("Difficulty");
   await expect(page.locator("#score-records")).toContainText("Attempts");
   await expect(page.locator("#score-records")).toContainText("Best score");
+  await page.getByRole("button", { name: "Clear Record" }).click();
+  await expect(page.locator("#score-records")).toContainText("Attempts");
+  await expect(page.locator("#score-records")).toContainText("0");
+  expect((await page.evaluate(() => window.__simTest.snapshot())).shiftRecord.attempts).toBe(0);
 
   await page.locator("#restart-shift").dispatchEvent("click");
   const snapshot = await page.evaluate(() => ({
@@ -132,8 +136,8 @@ test("restarts a completed shift without reloading the page", async ({ page }) =
   expect(snapshot.state.finished).toBe(false);
   expect(snapshot.state.openTickets).toBe(4);
   expect(snapshot.state.journalEntries).toBe(0);
-  expect(snapshot.state.shiftRecord.attempts).toBe(1);
-  expect(snapshot.state.shiftRecord.bestScore).toBeGreaterThan(0);
+  expect(snapshot.state.shiftRecord.attempts).toBe(0);
+  expect(snapshot.state.shiftRecord.bestScore).toBe(null);
   expect(snapshot.state.floorMap.incidents).toHaveLength(4);
   expect(snapshot.state.minutes).toBeGreaterThanOrEqual(480);
   expect(snapshot.state.minutes).toBeLessThan(481.5);
