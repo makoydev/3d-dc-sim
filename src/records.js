@@ -43,6 +43,16 @@ function writeShiftRecord(storage, record) {
   }
 }
 
+export function clearShiftRecord(storage = globalThis.localStorage) {
+  try {
+    storage?.removeItem?.(SHIFT_RECORD_KEY);
+  } catch {
+    // Storage can be unavailable in private or restricted contexts.
+  }
+
+  return getEmptyShiftRecord();
+}
+
 export function readShiftRecord(storage = globalThis.localStorage) {
   try {
     return normalizeRecord(JSON.parse(storage?.getItem?.(SHIFT_RECORD_KEY) ?? "null"));

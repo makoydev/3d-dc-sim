@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   SHIFT_RECORD_KEY,
+  clearShiftRecord,
   getEmptyShiftRecord,
   readShiftRecord,
   recordShiftResult,
@@ -14,6 +15,7 @@ function createMemoryStorage(initialValue = null) {
 
   return {
     getItem: (key) => values.get(key) ?? null,
+    removeItem: (key) => values.delete(key),
     setItem: (key, value) => values.set(key, value),
   };
 }
@@ -86,4 +88,20 @@ test("record shift result replaces best score when a run improves", () => {
   assert.equal(record.bestScore, 91);
   assert.equal(record.bestDifficulty, "expert");
   assert.equal(record.bestResolvedTickets, 4);
+});
+
+test("clear shift record removes stored progress", () => {
+  const storage = createMemoryStorage();
+  recordShiftResult(
+    {
+      score: 88,
+      difficulty: "standard",
+      resolvedTickets: 4,
+      totalTickets: 4,
+    },
+    storage,
+  );
+
+  assert.deepEqual(clearShiftRecord(storage), getEmptyShiftRecord());
+  assert.deepEqual(readShiftRecord(storage), getEmptyShiftRecord());
 });
