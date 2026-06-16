@@ -174,6 +174,8 @@ test("difficulty presets change escalation timing", async ({ page }) => {
 
   await page.getByRole("button", { name: "Expert" }).click();
   await expect(page.getByRole("button", { name: "Expert" })).toHaveAttribute("aria-pressed", "true");
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Expert" })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Start Shift" }).click();
 
   await page.evaluate(() => window.__simTest.setElapsedMinutes(5));
@@ -186,5 +188,6 @@ test("difficulty presets change escalation timing", async ({ page }) => {
   await expectDomText(page, "#tickets", "Critical pressure active");
   const snapshot = await page.evaluate(() => window.__simTest.snapshot());
   expect(snapshot.difficulty).toBe("expert");
+  expect(snapshot.settings.difficulty).toBe("expert");
   expect(snapshot.cueLog).toContain("critical-escalation");
 });

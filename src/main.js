@@ -9,6 +9,7 @@ import {
   getIncidentStage,
 } from "./incidents.js";
 import { getMovementDirection } from "./movement.js";
+import { readPreferences, writePreferences } from "./preferences.js";
 import { getIncidentPriorityItems, getRecommendedIncidentId } from "./priority.js";
 import { clearShiftRecord, readShiftRecord, recordShiftResult } from "./records.js";
 import {
@@ -20,6 +21,7 @@ import {
 const canvas = document.querySelector("#world");
 const searchParams = new URLSearchParams(window.location.search);
 const isTestMode = searchParams.get("test") === "1";
+const initialPreferences = readPreferences();
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -134,12 +136,7 @@ const state = {
     context: null,
     cueLog: [],
   },
-  settings: {
-    difficulty: "standard",
-    mouseSensitivity: 2,
-    invertY: false,
-    movementSpeed: 5.2,
-  },
+  settings: { ...initialPreferences },
   tickets: [
     {
       id: "cooling-leak",
@@ -1391,6 +1388,7 @@ function updateSettings() {
   state.settings.mouseSensitivity = Number(ui.mouseSensitivity.value);
   state.settings.invertY = ui.invertY.checked;
   state.settings.movementSpeed = Number(ui.movementSpeed.value);
+  state.settings = writePreferences(state.settings);
   syncSettingsInputs();
 }
 
@@ -1405,6 +1403,7 @@ function syncDifficultyOptions() {
 function setDifficulty(presetId) {
   if (!DIFFICULTY_PRESETS.some((preset) => preset.id === presetId)) return;
   state.settings.difficulty = presetId;
+  state.settings = writePreferences(state.settings);
   syncDifficultyOptions();
   renderTickets();
 }
@@ -1885,6 +1884,7 @@ if (isTestMode) {
       paused: state.paused,
       finished: state.finished,
       difficulty: state.settings.difficulty,
+      settings: { ...state.settings },
       shiftRecord: readShiftRecord(),
       ticketStages: state.tickets.map((ticket) => ticket.stage),
       displayChoices: state.tickets.map((ticket) => ({

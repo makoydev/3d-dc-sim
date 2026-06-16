@@ -34,3 +34,4 @@
 - [x] Add a pause menu with resume and restart actions.
 - [x] Add persistent shift records with attempts and best score.
 - [x] Add clear-record controls for persistent shift records.
+- [x] Persist difficulty and control preferences across reloads.
