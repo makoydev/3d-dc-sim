@@ -63,6 +63,7 @@ test("starts a shift and opens an incident task", async ({ page }) => {
   expect(attemptedWrongStep).toBe(true);
   await expect(page.locator(".procedure-alert")).toContainText("Procedure sequence mismatch");
   await expect(page.locator(".task-action.error")).toContainText(pduDisplay.actions[2]);
+  await expect(page.locator("#toast-stack")).toContainText("Procedure error");
   await expect(page.locator("#journal-entries")).toContainText("Procedure error");
   await expect(page.locator("#journal-entries")).not.toContainText("attempted before");
   const afterWrongStep = await page.evaluate(() => window.__simTest.snapshot());
@@ -88,6 +89,7 @@ test("starts a shift and opens an incident task", async ({ page }) => {
 
   const completed = await page.evaluate(() => window.__simTest.completeTicket("pdu-load"));
   expect(completed).toBe(true);
+  await expect(page.locator("#toast-stack")).toContainText("Ticket resolved");
   await expect(page.locator(".debrief-panel")).toBeVisible();
   await expect(page.locator(".debrief-panel")).toContainText("Resolution review");
   await expect(page.locator(".debrief-sequence li")).toHaveCount(3);

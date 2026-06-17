@@ -543,6 +543,7 @@ const ui = {
   difficultyOptions: document.querySelectorAll("[data-difficulty-option]"),
   tickets: document.querySelector("#tickets"),
   journalEntries: document.querySelector("#journal-entries"),
+  toastStack: document.querySelector("#toast-stack"),
   interaction: document.querySelector("#interaction"),
   interactionLabel: document.querySelector("#interaction-label"),
   taskModal: document.querySelector("#task-modal"),
@@ -1004,6 +1005,25 @@ function renderJournal() {
   renderJournalList(ui.scoreJournal, { emptyText: "No actions were completed" });
 }
 
+function showToast({ tone = "info", title, message }) {
+  const toast = document.createElement("article");
+  toast.className = "toast";
+  toast.dataset.tone = tone;
+  toast.innerHTML = `
+    <strong>${title}</strong>
+    <p>${message}</p>
+  `;
+  ui.toastStack.prepend(toast);
+
+  while (ui.toastStack.children.length > 3) {
+    ui.toastStack.lastElementChild?.remove();
+  }
+
+  window.setTimeout(() => {
+    toast.remove();
+  }, 4500);
+}
+
 function formatRecordTickets(resolvedTickets, totalTickets) {
   if (!Number.isFinite(resolvedTickets) || !Number.isFinite(totalTickets)) return "None";
   return `${resolvedTickets}/${totalTickets}`;
@@ -1169,6 +1189,11 @@ function applyProcedureError(ticket, attemptedIndex) {
   ticket.mistakeConsequences.push(consequence);
   state.health = Math.max(0, state.health - penalty.health);
   recordJournalEntry(ticket, `${attemptedAction}: ${consequence}`, attemptedIndex, { kind: "error" });
+  showToast({
+    tone: "danger",
+    title: "Procedure error",
+    message: ticket.title,
+  });
   playCue("critical-escalation");
   renderTickets();
   updateHud();
@@ -1190,6 +1215,11 @@ function applyDistractorError(ticket, distractorIndex) {
   ticket.mistakeConsequences.push(consequence);
   state.health = Math.max(0, state.health - penalty.health);
   recordJournalEntry(ticket, `${attemptedAction}: ${consequence}`, distractorIndex, { kind: "error" });
+  showToast({
+    tone: "danger",
+    title: "Unsafe choice",
+    message: ticket.title,
+  });
   playCue("critical-escalation");
   renderTickets();
   updateHud();
@@ -1222,6 +1252,11 @@ function completeTicketStep(ticket, index) {
     state.temperature = Math.max(21.4, state.temperature - (ticket.id === "hot-aisle" ? 1.2 : 0.25));
     state.pue = Math.max(1.31, state.pue - 0.035);
     markIncidentResolved(ticket);
+    showToast({
+      tone: "success",
+      title: "Ticket resolved",
+      message: ticket.title,
+    });
     playCue("task-complete");
   }
 }
@@ -1452,7 +1487,14 @@ function runIncidents(dt) {
     if (ticket.stage !== stage.id) {
       ticket.stage = stage.id;
       ticketStageChanged = true;
-      if (stage.id === "critical") playCue("critical-escalation");
+      if (stage.id === "critical") {
+        showToast({
+          tone: "danger",
+          title: "Critical escalation",
+          message: ticket.title,
+        });
+        playCue("critical-escalation");
+      }
     }
     updateIncidentVisual(ticket, stage);
     state.health -= ticket.penaltyRate * pressureMultiplier * procedurePressure * dt * 0.035;
