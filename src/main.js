@@ -22,8 +22,11 @@ const canvas = document.querySelector("#world");
 const searchParams = new URLSearchParams(window.location.search);
 const isTestMode = searchParams.get("test") === "1";
 const initialPreferences = readPreferences();
+const maxPixelRatio = 1.5;
+const hudUpdateInterval = 0.18;
+const visualUpdateInterval = 0.08;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxPixelRatio));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -45,6 +48,8 @@ const world = new THREE.Group();
 scene.add(world);
 
 const clock = new THREE.Clock();
+let hudUpdateElapsed = 0;
+let visualUpdateElapsed = 0;
 const raycaster = new THREE.Raycaster();
 const mouseCenter = new THREE.Vector2(0, 0);
 
@@ -667,7 +672,7 @@ function buildRoom() {
   const sun = new THREE.DirectionalLight(0xf6fff8, 1.1);
   sun.position.set(-8, 12, 10);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(1024, 1024);
   sun.shadow.camera.left = -24;
   sun.shadow.camera.right = 24;
   sun.shadow.camera.top = 24;
@@ -697,7 +702,7 @@ function buildRack(x, z, rowLabel, index) {
   front.userData.parentRack = rack;
   const ledMat = new THREE.MeshBasicMaterial({ color: 0x75f0c7 });
   for (let u = 0; u < 9; u += 1) {
-    const led = box(
+    box(
       "status led",
       [0.06, 0.035, 0.02],
       [x + 0.58, 0.55 + u * 0.29, z + 0.675],
@@ -705,13 +710,12 @@ function buildRack(x, z, rowLabel, index) {
       false,
       false,
     );
-    animated.push({
-      mesh: led,
-      update: (t) => {
-        led.material.color.setHex(Math.sin(t * 2 + u + index) > -0.2 ? 0x75f0c7 : 0x27463d);
-      },
-    });
   }
+  animated.push({
+    update: (t) => {
+      ledMat.color.setHex(Math.sin(t * 2 + index) > -0.2 ? 0x75f0c7 : 0x27463d);
+    },
+  });
   for (let shelf = 0; shelf < 6; shelf += 1) {
     box(
       "server faceplate",
@@ -1757,14 +1761,23 @@ function animate() {
   updateMovement(dt);
   updateActiveTarget();
   if (!state.paused) runIncidents(dt);
-  for (const item of animated) item.update(clock.elapsedTime);
-  updateHud();
+  visualUpdateElapsed += dt;
+  if (visualUpdateElapsed >= visualUpdateInterval) {
+    for (const item of animated) item.update(clock.elapsedTime);
+    visualUpdateElapsed = 0;
+  }
+  hudUpdateElapsed += dt;
+  if (hudUpdateElapsed >= hudUpdateInterval) {
+    updateHud();
+    hudUpdateElapsed = 0;
+  }
   renderer.render(scene, camera);
 }
 
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxPixelRatio));
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
